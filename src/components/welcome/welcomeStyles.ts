@@ -15,6 +15,7 @@ const styles = StyleSheet.create({
   },
   logoBlock: {
     alignItems: "center",
+    marginTop: 24,
   },
   logoMy: {
     color: "#294832",
@@ -59,9 +60,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     height: 475,
     justifyContent: "center",
-    marginTop: -4,
-    maxWidth: 430,
+    maxWidth: 500,
     width: "100%",
+  },
+  heroImage: {
+    height: "200%",
+    width: "115%",
   },
   glowCircle: {
     backgroundColor: "#fff8e6",
