@@ -1,5 +1,6 @@
 import { StatusBar } from "expo-status-bar";
-import { Pressable, SafeAreaView, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 
 import BrandLogo from "../components/welcome/BrandLogo";
