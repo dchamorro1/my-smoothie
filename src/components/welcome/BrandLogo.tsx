@@ -3,6 +3,8 @@ import { Text, View } from "react-native";
 import { Leaf } from "./FruitShapes";
 import styles from "./welcomeStyles";
 
+console.log("BrandLogo rendered");
+
 export default function BrandLogo() {
   return (
     <View style={styles.logoBlock}>
