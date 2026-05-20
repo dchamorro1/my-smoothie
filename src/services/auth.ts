@@ -47,3 +47,23 @@ export async function signUpGuest() {
     session: signInResult.data.session,
   };
 }
+
+export async function signInWithEmail(email: string, password: string) {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: email.trim(),
+    password,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data.session) {
+    throw new Error("Sign in did not return a session.");
+  }
+
+  return {
+    user: data.user,
+    session: data.session,
+  };
+}

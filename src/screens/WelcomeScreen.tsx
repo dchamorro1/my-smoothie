@@ -11,9 +11,10 @@ import { signUpGuest } from "../services/auth";
 
 type Props = {
   onGuestCreated: () => void;
+  onSignIn: () => void;
 };
 
-export default function WelcomeScreen({ onGuestCreated }: Props) {
+export default function WelcomeScreen({ onGuestCreated, onSignIn }: Props) {
   const { t } = useTranslation();
   const [isCreating, setIsCreating] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -65,6 +66,17 @@ export default function WelcomeScreen({ onGuestCreated }: Props) {
               </>
             )}
           </Pressable>
+          <View style={styles.signInRow}>
+            <Text style={styles.signInPrompt}>{t("welcome.signInPrompt")}</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("welcome.signIn")}
+              onPress={onSignIn}
+              style={({ pressed }) => pressed && styles.signInPressed}
+            >
+              <Text style={styles.signInLink}>{t("welcome.signIn")}</Text>
+            </Pressable>
+          </View>
           {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
         </View>
       </View>

@@ -521,6 +521,25 @@ const styles = StyleSheet.create({
     marginLeft: 18,
     marginTop: -2,
   },
+  signInRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 20,
+  },
+  signInPrompt: {
+    color: "#5f6d5d",
+    fontSize: 15,
+    marginRight: 5,
+  },
+  signInLink: {
+    color: "#294832",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  signInPressed: {
+    opacity: 0.68,
+  },
   errorText: {
     color: "#d32f2f",
     marginTop: 14,
