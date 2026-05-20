@@ -1,11 +1,15 @@
 import { StatusBar } from "expo-status-bar";
-import { Pressable, SafeAreaView, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 
 import BrandLogo from "../components/welcome/BrandLogo";
 import HeroArt from "../components/welcome/HeroArt";
 import styles from "../components/welcome/welcomeStyles";
 
 export default function WelcomeScreen() {
+  const { t } = useTranslation();
+
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar style="dark" />
@@ -15,16 +19,16 @@ export default function WelcomeScreen() {
         <HeroArt />
 
         <View style={styles.footer}>
-          <Text style={styles.welcome}>Welcome!</Text>
+          <Text style={styles.welcome}>{t("welcome.title")}</Text>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Get started"
+            accessibilityLabel={t("welcome.getStarted")}
             style={({ pressed }) => [
               styles.button,
               pressed && styles.buttonPressed,
             ]}
           >
-            <Text style={styles.buttonText}>Let's Get Started</Text>
+            <Text style={styles.buttonText}>{t("welcome.getStarted")}</Text>
             <Text style={styles.buttonArrow}>{">"}</Text>
           </Pressable>
         </View>
