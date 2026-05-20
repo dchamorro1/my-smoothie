@@ -2,6 +2,7 @@ import { StatusBar } from "expo-status-bar";
 import { useState } from "react";
 import {
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -34,6 +35,7 @@ export default function SignInScreen({ onBack, onSignedIn }: Props) {
 
     setIsSigningIn(true);
     setErrorMessage(null);
+    Keyboard.dismiss();
 
     try {
       await signInWithEmail(email, password);
@@ -49,6 +51,11 @@ export default function SignInScreen({ onBack, onSignedIn }: Props) {
     }
   };
 
+  const handleBack = () => {
+    Keyboard.dismiss();
+    onBack();
+  };
+
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar style="dark" />
@@ -60,7 +67,7 @@ export default function SignInScreen({ onBack, onSignedIn }: Props) {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Back to welcome"
-            onPress={onBack}
+            onPress={handleBack}
             style={({ pressed }) => [
               styles.backButton,
               pressed && styles.pressed,

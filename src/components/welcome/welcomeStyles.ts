@@ -8,14 +8,14 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingBottom: 78,
+    justifyContent: "center",
+    paddingBottom: 34,
     paddingHorizontal: 28,
-    paddingTop: 28,
+    paddingTop: 12,
   },
   logoBlock: {
     alignItems: "center",
-    marginTop: 24,
+    marginBottom: 10,
   },
   logoMy: {
     color: "#294832",
@@ -58,13 +58,12 @@ const styles = StyleSheet.create({
   },
   heroArt: {
     alignItems: "center",
-    height: 475,
     justifyContent: "center",
     maxWidth: 500,
     width: "100%",
   },
   heroImage: {
-    height: "200%",
+    height: "100%",
     width: "115%",
   },
   glowCircle: {
@@ -486,7 +485,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "800",
     letterSpacing: 0,
-    marginBottom: 30,
+    marginBottom: 22,
   },
   button: {
     alignItems: "center",
@@ -525,7 +524,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: 20,
+    marginTop: 16,
   },
   signInPrompt: {
     color: "#5f6d5d",

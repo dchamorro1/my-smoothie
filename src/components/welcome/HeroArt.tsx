@@ -1,12 +1,16 @@
-import { Image, View } from "react-native";
+import { Image, StyleProp, View, ViewStyle } from "react-native";
 
 import styles from "./welcomeStyles";
 
 const smoothieHero = require("../../assets/welcome-smoothie.png");
 
-export default function HeroArt() {
+type Props = {
+  style?: StyleProp<ViewStyle>;
+};
+
+export default function HeroArt({ style }: Props) {
   return (
-    <View style={styles.heroArt}>
+    <View style={[styles.heroArt, style]}>
       <Image
         accessibilityIgnoresInvertColors
         resizeMode="contain"

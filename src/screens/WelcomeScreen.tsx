@@ -1,5 +1,5 @@
 import { StatusBar } from "expo-status-bar";
-import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
@@ -16,8 +16,10 @@ type Props = {
 
 export default function WelcomeScreen({ onGuestCreated, onSignIn }: Props) {
   const { t } = useTranslation();
+  const { height } = useWindowDimensions();
   const [isCreating, setIsCreating] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const heroHeight = Math.max(285, Math.min(395, height * 0.42));
 
   const handleGetStarted = async () => {
     setIsCreating(true);
@@ -43,7 +45,7 @@ export default function WelcomeScreen({ onGuestCreated, onSignIn }: Props) {
       <View style={styles.content}>
         <BrandLogo />
 
-        <HeroArt />
+        <HeroArt style={{ height: heroHeight }} />
 
         <View style={styles.footer}>
           <Text style={styles.welcome}>{t("welcome.title")}</Text>
