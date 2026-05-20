@@ -1,14 +1,40 @@
 import { StatusBar } from "expo-status-bar";
-import { Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
+import { useState } from "react";
 
 import BrandLogo from "../components/welcome/BrandLogo";
 import HeroArt from "../components/welcome/HeroArt";
 import styles from "../components/welcome/welcomeStyles";
+import { signUpGuest } from "../services/auth";
 
-export default function WelcomeScreen() {
+type Props = {
+  onGuestCreated: () => void;
+};
+
+export default function WelcomeScreen({ onGuestCreated }: Props) {
   const { t } = useTranslation();
+  const [isCreating, setIsCreating] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const handleGetStarted = async () => {
+    setIsCreating(true);
+    setErrorMessage(null);
+
+    try {
+      await signUpGuest();
+      onGuestCreated();
+    } catch (error) {
+      if (error instanceof Error) {
+        setErrorMessage(error.message);
+      } else {
+        setErrorMessage("Unable to create guest account.");
+      }
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -27,10 +53,19 @@ export default function WelcomeScreen() {
               styles.button,
               pressed && styles.buttonPressed,
             ]}
+            onPress={handleGetStarted}
+            disabled={isCreating}
           >
-            <Text style={styles.buttonText}>{t("welcome.getStarted")}</Text>
-            <Text style={styles.buttonArrow}>{">"}</Text>
+            {isCreating ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <Text style={styles.buttonText}>{t("welcome.getStarted")}</Text>
+                <Text style={styles.buttonArrow}>{">"}</Text>
+              </>
+            )}
           </Pressable>
+          {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
         </View>
       </View>
     </SafeAreaView>
