@@ -29,7 +29,13 @@ expo.out.log
 
 # Local env
 .env
+.env.*
 .env*.local
+**/.env
+**/.env.*
+**/.env*.local
+!.env.example
+!**/.env.example
 
 # TypeScript
 *.tsbuildinfo

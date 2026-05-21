@@ -7,7 +7,7 @@ import { useState } from "react";
 import BrandLogo from "../components/welcome/BrandLogo";
 import HeroArt from "../components/welcome/HeroArt";
 import styles from "../components/welcome/welcomeStyles";
-import { signUpGuest } from "../services/auth";
+import { fetchUserActivePlantsCount, signUpGuest } from "../services/auth";
 
 type Props = {
   onGuestCreated: () => void;
@@ -26,7 +26,9 @@ export default function WelcomeScreen({ onGuestCreated, onSignIn }: Props) {
     setErrorMessage(null);
 
     try {
-      await signUpGuest();
+      const { session } = await signUpGuest();
+      const count = await fetchUserActivePlantsCount(session.access_token);
+      console.log("Current active plants count:", count);
       onGuestCreated();
     } catch (error) {
       if (error instanceof Error) {

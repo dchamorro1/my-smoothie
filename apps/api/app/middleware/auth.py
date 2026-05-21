@@ -1,9 +1,7 @@
-import jwt
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
-from app.config import settings
-from typing import Optional
+from app.utils.supabase import get_supabase_client
 
 class JWTVerificationMiddleware(BaseHTTPMiddleware):
     """
@@ -39,24 +37,16 @@ class JWTVerificationMiddleware(BaseHTTPMiddleware):
             )
 
         try:
-            payload = jwt.decode(
-                token,
-                settings.SUPABASE_JWT_SECRET,
-                algorithms=["HS256"]
-            )
-            user_id = payload.get("sub")
-            if not user_id:
+            supabase = get_supabase_client()
+            user_response = supabase.auth.get_user(token)
+            if not user_response or not getattr(user_response, "user", None):
                 return JSONResponse(
                     status_code=401,
-                    content={"detail": "Invalid token: missing user ID"}
+                    content={"detail": "Invalid token: unable to verify user"}
                 )
-            request.state.user_id = user_id
-        except jwt.ExpiredSignatureError:
-            return JSONResponse(
-                status_code=401,
-                content={"detail": "Token expired"}
-            )
-        except jwt.InvalidTokenError as e:
+
+            request.state.user_id = user_response.user.id
+        except Exception as e:
             return JSONResponse(
                 status_code=401,
                 content={"detail": f"Invalid token: {str(e)}"}
