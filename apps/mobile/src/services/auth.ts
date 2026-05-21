@@ -1,50 +1,24 @@
 import { supabase } from "../../utils/supabase";
 
-function makeGuestEmail() {
-  const id = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  return `guest-${id}@my-smoothie.local`;
-}
-
-function makeGuestPassword() {
-  return `G${Math.random().toString(36).slice(2, 10)}!`;
-}
-
 export async function signUpGuest() {
-  const email = makeGuestEmail();
-  const password = makeGuestPassword();
+  console.log("Attempting anonymous sign in...");
+  const { data, error } = await supabase.auth.signInAnonymously();
 
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: { guest: true },
-    },
-  });
+  console.log("Anonymous sign in response:", { data, error });
 
   if (error) {
+    console.error("Anonymous sign in error:", error);
     throw error;
   }
 
-  if (data.session) {
-    return { user: data.user, session: data.session };
+  if (!data.session) {
+    throw new Error("Anonymous sign in did not return a session.");
   }
 
-  const signInResult = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
-
-  if (signInResult.error) {
-    throw signInResult.error;
-  }
-
-  if (!signInResult.data.session) {
-    throw new Error("Guest sign in did not return a session.");
-  }
-
+  console.log("Guest user created:", data.user.id);
   return {
-    user: signInResult.data.user,
-    session: signInResult.data.session,
+    user: data.user,
+    session: data.session,
   };
 }
 
