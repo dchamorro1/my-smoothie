@@ -2,13 +2,26 @@ import "./src/i18n";
 
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, View, Text } from "react-native";
+import { SafeAreaProvider, initialWindowMetrics } from "react-native-safe-area-context";
 import WelcomeScreen from "./src/screens/WelcomeScreen";
 import MyActiveIngredients from "./src/screens/MyActiveIngredients";
+import SignInScreen from "./src/screens/SignInScreen";
 import { supabase } from "./utils/supabase";
 
+type AuthScreen = "welcome" | "signIn";
+
 export default function App() {
+  return (
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      <AppContent />
+    </SafeAreaProvider>
+  );
+}
+
+function AppContent() {
   const [initializing, setInitializing] = useState(true);
   const [hasSession, setHasSession] = useState(false);
+  const [authScreen, setAuthScreen] = useState<AuthScreen>("welcome");
 
   useEffect(() => {
     const restoreSession = async () => {
@@ -33,10 +46,31 @@ export default function App() {
   }
 
   if (hasSession) {
-    return <MyActiveIngredients onSignOut={() => setHasSession(false)} />;
+    return (
+      <MyActiveIngredients
+        onSignOut={() => {
+          setHasSession(false);
+          setAuthScreen("welcome");
+        }}
+      />
+    );
   }
 
-  return <WelcomeScreen onGuestCreated={() => setHasSession(true)} />;
+  if (authScreen === "signIn") {
+    return (
+      <SignInScreen
+        onBack={() => setAuthScreen("welcome")}
+        onSignedIn={() => setHasSession(true)}
+      />
+    );
+  }
+
+  return (
+    <WelcomeScreen
+      onGuestCreated={() => setHasSession(true)}
+      onSignIn={() => setAuthScreen("signIn")}
+    />
+  );
 }
 
 

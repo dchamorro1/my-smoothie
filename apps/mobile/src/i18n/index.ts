@@ -11,6 +11,8 @@ const resources = {
       welcome: {
         title: "Welcome!",
         getStarted: "Let's Get Started",
+        signInPrompt: "Already have an account?",
+        signIn: "Sign in",
       },
     },
   },
@@ -23,6 +25,8 @@ const resources = {
       welcome: {
         title: "Bienvenido!",
         getStarted: "Comenzar",
+        signInPrompt: "Ya tienes una cuenta?",
+        signIn: "Iniciar sesion",
       },
     },
   },
