@@ -5,7 +5,7 @@
       "name": "Python: Uvicorn (apps/api)",
       "type": "python",
       "request": "launch",
-      "python": "${workspaceFolder}/.venv/bin/python",
+      "python": "${workspaceFolder}/apps/api/venv/bin/python",
       "module": "uvicorn",
       "cwd": "${workspaceFolder}/apps/api",
       "args": [

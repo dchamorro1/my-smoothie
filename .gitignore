@@ -29,6 +29,14 @@ expo.out.log
 
 # macOS
 .DS_Store
+**/.DS_Store
+
+# Python
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.venv/
+venv/
 
 # Local env
 .env
