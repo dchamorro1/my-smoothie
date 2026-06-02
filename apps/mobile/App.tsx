@@ -3,6 +3,7 @@ import "./src/i18n";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 import { SafeAreaProvider, initialWindowMetrics } from "react-native-safe-area-context";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import WelcomeScreen from "./src/screens/WelcomeScreen";
 import SignInScreen from "./src/screens/SignInScreen";
@@ -17,9 +18,11 @@ type Screen = "loading" | "welcome" | "signIn" | "onboarding_difficulty" | "onbo
 
 export default function App() {
   return (
-    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-      <AppContent />
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+        <AppContent />
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 

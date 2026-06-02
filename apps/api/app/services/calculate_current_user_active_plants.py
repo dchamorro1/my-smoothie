@@ -130,7 +130,8 @@ def calculate_and_assign_user_active_plants(user_id: str, count: Optional[int] =
             "profiles_id": user_id,
             "north_american_plant_foods_id": p["id"],
             "status": "pending",
+            "position_index": i,
         }
-        for p in selected
+        for i, p in enumerate(selected)
     ]
     supabase.from_("user_active_plants").insert(rows).execute()

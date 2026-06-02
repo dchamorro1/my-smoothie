@@ -101,8 +101,54 @@ export async function completeOnboarding(
 
 export interface ActivePlant {
   id: number;
+  status: "bought" | "pending";
+  position_index: number;
   common_name: string;
   fiber_quantity: number;
+}
+
+export async function removePlant(
+  accessToken: string,
+  plantId: number,
+  reason: "consumed" | "discarded"
+): Promise<ActivePlant | null> {
+  const response = await fetch(
+    `${API_URL}/api/user-active-plants/${plantId}?reason=${reason}`,
+    {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }
+  );
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Failed to remove plant: ${response.status} ${text}`);
+  }
+  const data = await response.json();
+  return data.new_plant ?? null;
+}
+
+export async function skipPlant(accessToken: string, plantId: number): Promise<ActivePlant | null> {
+  const response = await fetch(`${API_URL}/api/user-active-plants/${plantId}/skip`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Failed to skip plant: ${response.status} ${text}`);
+  }
+  const data = await response.json();
+  return data.new_plant ?? null;
+}
+
+export async function buyPlant(accessToken: string, plantId: number): Promise<void> {
+  const response = await fetch(`${API_URL}/api/user-active-plants/${plantId}/buy`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Failed to update plant: ${response.status} ${text}`);
+  }
 }
 
 export async function fetchUserActivePlants(accessToken: string): Promise<ActivePlant[]> {
