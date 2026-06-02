@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   Animated,
   ActivityIndicator,
+  Easing,
   FlatList,
   Modal,
   Pressable,
@@ -9,7 +10,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 // @ts-ignore — legacy Swipeable, works without react-native-reanimated
 import Swipeable from "react-native-gesture-handler/Swipeable";
@@ -29,11 +30,32 @@ import {
 
 const HARD_SWIPE_THRESHOLD = -220;
 
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
 // ── Progress bar ─────────────────────────────────────────────────────────────
 
 function ProgressBar({ consumed, goal }: { consumed: number; goal: number }) {
   const isOverGoal = consumed >= goal;
   const pct = Math.min(consumed / goal, 1);
+
+  const [trackWidth, setTrackWidth] = useState(0);
+  const fillWidth = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (trackWidth === 0) return;
+    const target = (isOverGoal ? 1 : pct) * trackWidth;
+    Animated.timing(fillWidth, {
+      toValue: target,
+      duration: 700,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [pct, trackWidth, isOverGoal]);
 
   return (
     <View style={styles.progressContainer}>
@@ -47,17 +69,20 @@ function ProgressBar({ consumed, goal }: { consumed: number; goal: number }) {
           {isOverGoal ? " ✨" : ""}
         </Text>
       </View>
-      <View style={styles.progressTrack}>
-        {isOverGoal ? (
-          <LinearGradient
-            colors={["#f59e0b", "#ef4444", "#8b5cf6"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.progressFill}
-          />
-        ) : (
-          <View style={[styles.progressFill, { width: `${pct * 100}%` as any }]} />
-        )}
+      <View
+        style={styles.progressTrack}
+        onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
+      >
+        <Animated.View style={[styles.progressFill, { width: fillWidth }]}>
+          {isOverGoal && (
+            <LinearGradient
+              colors={["#f59e0b", "#ef4444", "#8b5cf6"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.progressGradientFill}
+            />
+          )}
+        </Animated.View>
       </View>
     </View>
   );
@@ -111,20 +136,45 @@ function SkippedPlaceholder() {
 
 type PlantRowProps = {
   item: ActivePlant;
+  index: number;
   onBuy: (id: number) => void;
   onRemove: (id: number, reason: "consumed" | "discarded") => void;
   onSkip: (id: number) => void;
 };
 
-function PlantRow({ item, onBuy, onRemove, onSkip }: PlantRowProps) {
+const STAGGER_MS = 70;
+
+function PlantRow({ item, index, onBuy, onRemove, onSkip }: PlantRowProps) {
   const swipeRef = useRef<Swipeable>(null);
   const autoSkipFired = useRef(false);
   const dragXRef = useRef<Animated.Value | null>(null);
   const bought = item.status === "bought";
 
+  // Staggered entrance animation
+  const entrance = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
+    Animated.timing(entrance, {
+      toValue: 1,
+      duration: 420,
+      delay: index * STAGGER_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
     return () => { dragXRef.current?.removeAllListeners(); };
   }, []);
+
+  const animatedStyle = {
+    opacity: entrance,
+    transform: [
+      {
+        translateY: entrance.interpolate({
+          inputRange: [0, 1],
+          outputRange: [24, 0],
+        }),
+      },
+    ],
+  };
 
   const handleSkip = () => {
     swipeRef.current?.close();
@@ -187,37 +237,40 @@ function PlantRow({ item, onBuy, onRemove, onSkip }: PlantRowProps) {
   );
 
   return (
-    <Swipeable
-      ref={swipeRef}
-      renderRightActions={bought ? boughtRightActions : pendingRightActions}
-      overshootFriction={4}
-      onSwipeableClose={() => { autoSkipFired.current = false; }}
-    >
-      <View style={[styles.card, bought ? styles.cardBought : styles.cardPending]}>
-        <Pressable
-          onPress={() => !bought && onBuy(item.id)}
-          style={styles.iconButton}
-          accessibilityRole="button"
-          accessibilityLabel={bought ? "Added to pantry" : `Add ${item.common_name} to pantry`}
-        >
-          <Ionicons
-            name={bought ? "checkmark-circle" : "add-circle-outline"}
-            size={28}
-            color={bought ? "#008080" : "#f59e0b"}
-          />
-        </Pressable>
-        <Text style={styles.plantName}>{item.common_name}</Text>
-        <View style={styles.fiberBadge}>
-          <Text style={styles.fiberText}>{item.fiber_quantity}g fiber / oz</Text>
+    <Animated.View style={animatedStyle}>
+      <Swipeable
+        ref={swipeRef}
+        renderRightActions={bought ? boughtRightActions : pendingRightActions}
+        overshootFriction={4}
+        onSwipeableClose={() => { autoSkipFired.current = false; }}
+      >
+        <View style={[styles.card, bought ? styles.cardBought : styles.cardPending]}>
+          <Pressable
+            onPress={() => !bought && onBuy(item.id)}
+            style={styles.iconButton}
+            accessibilityRole="button"
+            accessibilityLabel={bought ? "Added to pantry" : `Add ${item.common_name} to pantry`}
+          >
+            <Ionicons
+              name={bought ? "checkmark-circle" : "add-circle-outline"}
+              size={28}
+              color={bought ? "#008080" : "#f59e0b"}
+            />
+          </Pressable>
+          <Text style={styles.plantName}>{item.common_name}</Text>
+          <View style={styles.fiberBadge}>
+            <Text style={styles.fiberText}>{item.fiber_quantity}g fiber / oz</Text>
+          </View>
         </View>
-      </View>
-    </Swipeable>
+      </Swipeable>
+    </Animated.View>
   );
 }
 
 // ── Screen ───────────────────────────────────────────────────────────────────
 
 export default function MyActiveIngredients() {
+  const insets = useSafeAreaInsets();
   const [plants, setPlants] = useState<ActivePlant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -343,14 +396,20 @@ export default function MyActiveIngredients() {
   };
 
   return (
-    <SafeAreaView style={styles.screen} edges={["top"]}>
-      <View style={styles.header}>
+    <View style={styles.screen}>
+      <LinearGradient
+        colors={["#0f766e", "#14b8a6", "#34d399"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.header, { paddingTop: insets.top + 16 }]}
+      >
+        <Text style={styles.greeting}>{getGreeting()} 🌱</Text>
         <Text style={styles.title}>My Daily Ingredients</Text>
-      </View>
 
-      {progress && (
-        <ProgressBar consumed={progress.consumed} goal={progress.goal} />
-      )}
+        {progress && (
+          <ProgressBar consumed={progress.consumed} goal={progress.goal} />
+        )}
+      </LinearGradient>
 
       {loading && (
         <View style={styles.centered}>
@@ -376,12 +435,13 @@ export default function MyActiveIngredients() {
           data={plants}
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={styles.list}
-          renderItem={({ item }) =>
+          renderItem={({ item, index }) =>
             skippedIds.has(item.id) ? (
               <SkippedPlaceholder key={item.id} />
             ) : (
               <PlantRow
                 item={item}
+                index={index}
                 onBuy={handleBuy}
                 onRemove={handleRemove}
                 onSkip={handleSkip}
@@ -396,7 +456,7 @@ export default function MyActiveIngredients() {
         goal={progress?.goal ?? 0}
         onClose={() => setShowCelebration(false)}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -406,36 +466,45 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#f9f9f9" },
   header: {
     paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 12,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
+    paddingBottom: 22,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    shadowColor: "#0f766e",
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
   },
-  title: { fontSize: 20, fontWeight: "700", color: "#111" },
+  greeting: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.9)",
+    marginBottom: 2,
+  },
+  title: { fontSize: 28, fontWeight: "800", color: "#fff", letterSpacing: 0.2 },
 
   // Progress bar
   progressContainer: {
-    backgroundColor: "#fff",
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
+    marginTop: 18,
   },
-  progressLabelRow: { marginBottom: 6 },
-  progressLabel: { fontSize: 13, color: "#555" },
-  progressCount: { fontWeight: "700", color: "#111" },
+  progressLabelRow: { marginBottom: 8 },
+  progressLabel: { fontSize: 13, color: "rgba(255,255,255,0.85)" },
+  progressCount: { fontWeight: "800", color: "#fff" },
   progressTrack: {
-    height: 8,
-    backgroundColor: "#e5e7eb",
+    height: 9,
+    backgroundColor: "rgba(255,255,255,0.25)",
     borderRadius: 999,
     overflow: "hidden",
   },
   progressFill: {
     height: "100%",
     borderRadius: 999,
-    backgroundColor: "#008080",
+    backgroundColor: "#ffffff",
+    overflow: "hidden",
+  },
+  progressGradientFill: {
+    flex: 1,
+    borderRadius: 999,
   },
 
   // Celebration modal
