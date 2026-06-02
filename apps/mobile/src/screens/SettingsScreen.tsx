@@ -1,24 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  Animated,
   ActivityIndicator,
   Alert,
-  Easing,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  PanGestureHandler,
-  PanGestureHandlerGestureEvent,
-  PanGestureHandlerStateChangeEvent,
-  State,
-} from "react-native-gesture-handler";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import BottomSheet from "../components/BottomSheet";
 import { supabase } from "../../utils/supabase";
 import {
   deleteAccount,
@@ -50,92 +42,6 @@ const ALLERGENS = [
   { key: "soybeans",  label: "Soybeans" },
   { key: "sesame",    label: "Sesame" },
 ];
-
-// ── Reusable bottom sheet ─────────────────────────────────────────────────────
-
-type BottomSheetProps = {
-  visible: boolean;
-  onClose: () => void;
-  children: React.ReactNode;
-};
-
-const SHEET_CLOSED_Y = 600;
-const DISMISS_DISTANCE = 120;
-const DISMISS_VELOCITY = 800;
-
-function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
-  const insets = useSafeAreaInsets();
-  const [mounted, setMounted] = useState(false);
-  // Single value drives both the slide animation and the drag; backdrop derives from it.
-  const translateY = useRef(new Animated.Value(SHEET_CLOSED_Y)).current;
-
-  useEffect(() => {
-    if (visible) {
-      setMounted(true);
-      translateY.setValue(SHEET_CLOSED_Y);
-      Animated.timing(translateY, {
-        toValue: 0,
-        duration: 340,
-        easing: Easing.out(Easing.exp),
-        useNativeDriver: false,
-      }).start();
-    } else if (mounted) {
-      Animated.timing(translateY, {
-        toValue: SHEET_CLOSED_Y,
-        duration: 240,
-        useNativeDriver: false,
-      }).start(() => setMounted(false));
-    }
-  }, [visible]);
-
-  const onGestureEvent = (e: PanGestureHandlerGestureEvent) => {
-    const ty = e.nativeEvent.translationY;
-    if (ty > 0) translateY.setValue(ty);
-  };
-
-  const onHandlerStateChange = (e: PanGestureHandlerStateChangeEvent) => {
-    if (e.nativeEvent.state !== State.END) return;
-    const { translationY, velocityY } = e.nativeEvent;
-    if (translationY > DISMISS_DISTANCE || velocityY > DISMISS_VELOCITY) {
-      onClose();
-    } else {
-      Animated.spring(translateY, {
-        toValue: 0,
-        useNativeDriver: false,
-        bounciness: 0,
-      }).start();
-    }
-  };
-
-  if (!mounted) return null;
-
-  const backdropOpacity = translateY.interpolate({
-    inputRange: [0, SHEET_CLOSED_Y],
-    outputRange: [1, 0],
-    extrapolate: "clamp",
-  });
-
-  return (
-    <Modal visible transparent animationType="none" onRequestClose={onClose}>
-      <View style={styles.sheetRoot}>
-        <Animated.View style={[styles.sheetBackdrop, { opacity: backdropOpacity }]}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        </Animated.View>
-        <PanGestureHandler onGestureEvent={onGestureEvent} onHandlerStateChange={onHandlerStateChange}>
-          <Animated.View
-            style={[
-              styles.sheetContainer,
-              { paddingBottom: insets.bottom + 16, transform: [{ translateY }] },
-            ]}
-          >
-            <View style={styles.sheetHandle} />
-            {children}
-          </Animated.View>
-        </PanGestureHandler>
-      </View>
-    </Modal>
-  );
-}
 
 // ── Allergies bottom sheet ────────────────────────────────────────────────────
 
@@ -566,31 +472,7 @@ const styles = StyleSheet.create({
   signOutRow: { justifyContent: "center" },
   signOutText: { fontSize: 16, color: "#c00", fontWeight: "500" },
 
-  // Bottom sheet
-  sheetRoot: {
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  sheetBackdrop: {
-    position: "absolute",
-    top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.5)",
-  },
-  sheetContainer: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-  },
-  sheetHandle: {
-    width: 36,
-    height: 4,
-    backgroundColor: "#ddd",
-    borderRadius: 2,
-    alignSelf: "center",
-    marginBottom: 20,
-  },
+  // Bottom sheet content
   sheetTitle: { fontSize: 20, fontWeight: "700", color: "#111", marginBottom: 4 },
   sheetSubtitle: { fontSize: 14, color: "#888", marginBottom: 20 },
   allergenRow: {

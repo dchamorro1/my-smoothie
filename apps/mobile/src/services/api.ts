@@ -122,6 +122,38 @@ export interface ActivePlant {
   fiber_quantity: number;
 }
 
+export interface PlantSearchResult {
+  id: number;
+  common_name: string;
+  fiber_quantity: number;
+}
+
+export async function searchPlants(accessToken: string, query: string): Promise<PlantSearchResult[]> {
+  const response = await fetch(`${API_URL}/api/plants/search?q=${encodeURIComponent(query)}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok) throw new Error(`Search failed: ${response.status}`);
+  const data = await response.json();
+  return data.results;
+}
+
+export async function addCustomPlant(accessToken: string, plantId: number): Promise<ActivePlant> {
+  const response = await fetch(`${API_URL}/api/user-active-plants/custom`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ north_american_plant_foods_id: plantId }),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Failed to add plant: ${response.status} ${text}`);
+  }
+  const data = await response.json();
+  return data.plant;
+}
+
 export async function removePlant(
   accessToken: string,
   plantId: number,

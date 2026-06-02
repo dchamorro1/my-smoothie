@@ -1,10 +1,42 @@
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Query, Request
+from pydantic import BaseModel
 
-from app.services.calculate_current_user_active_plants import calculate_and_assign_user_active_plants
+from app.services.calculate_current_user_active_plants import (
+    DIFFICULTY_SLOT_COUNT,
+    calculate_and_assign_user_active_plants,
+)
+from app.routes.plants import is_plant_selectable
 from app.utils.supabase import get_supabase_client
 
 router = APIRouter(prefix="/api/user-active-plants", tags=["user_active_plants"])
+
+
+class CustomPlantRequest(BaseModel):
+    north_american_plant_foods_id: int
+
+
+def _slot_count_for(supabase, user_id: str) -> int:
+    resp = (
+        supabase
+        .from_("profiles")
+        .select("difficulty_level")
+        .eq("id", user_id)
+        .execute()
+    )
+    difficulty = (resp.data[0] if resp.data else {}).get("difficulty_level", "beginner")
+    return DIFFICULTY_SLOT_COUNT.get(difficulty, 2)
+
+
+def _active_plant_count(supabase, user_id: str) -> int:
+    resp = (
+        supabase
+        .from_("user_active_plants")
+        .select("id", count="exact")
+        .eq("profiles_id", user_id)
+        .execute()
+    )
+    return resp.count or 0
 
 
 def _fetch_active_plants(supabase, user_id: str) -> list:
@@ -99,8 +131,20 @@ async def remove_plant(
 
     supabase.from_("user_active_plants").delete().eq("id", plant_id).eq("profiles_id", user_id).execute()
 
-    new_plant = _calculate_and_return_new_plant(supabase, user_id)
+    new_plant = _maybe_replace(supabase, user_id)
     return {"success": True, "new_plant": new_plant}
+
+
+def _maybe_replace(supabase, user_id: str):
+    """Generate a replacement only if the user is below their difficulty slot count.
+
+    Manual ('add your own') extras push the active list above the slot count, and
+    we don't want to perpetually top those back up — the list should settle back
+    to the user's level as extras are worked through.
+    """
+    if _active_plant_count(supabase, user_id) >= _slot_count_for(supabase, user_id):
+        return None
+    return _calculate_and_return_new_plant(supabase, user_id)
 
 
 def _calculate_and_return_new_plant(supabase, user_id: str):
@@ -158,5 +202,58 @@ async def skip_plant(plant_id: int, request: Request):
 
     supabase.from_("user_active_plants").delete().eq("id", plant_id).eq("profiles_id", user_id).execute()
 
-    new_plant = _calculate_and_return_new_plant(supabase, user_id)
+    new_plant = _maybe_replace(supabase, user_id)
     return {"success": True, "new_plant": new_plant}
+
+
+@router.post("/custom")
+async def add_custom_plant(request: Request, body: CustomPlantRequest):
+    """Manually add a plant the user already has. Lands as 'bought' and is allowed
+    to push the active list above the difficulty slot count."""
+    user_id = request.state.user_id
+    supabase = get_supabase_client()
+    plant_id = body.north_american_plant_foods_id
+
+    # Re-validate the same constraints the search applies (defense in depth)
+    if not is_plant_selectable(supabase, user_id, plant_id):
+        raise HTTPException(status_code=400, detail="This plant can't be added right now.")
+
+    active_rows = (
+        supabase
+        .from_("user_active_plants")
+        .select("position_index")
+        .eq("profiles_id", user_id)
+        .execute()
+    ).data or []
+    base_index = max((row["position_index"] or 0 for row in active_rows), default=-1) + 1
+
+    insert_resp = (
+        supabase
+        .from_("user_active_plants")
+        .insert({
+            "profiles_id": user_id,
+            "north_american_plant_foods_id": plant_id,
+            "status": "bought",
+            "position_index": base_index,
+        })
+        .execute()
+    )
+    new_id = insert_resp.data[0]["id"]
+
+    detail = (
+        supabase
+        .from_("user_active_plants")
+        .select("id, status, position_index, north_american_plant_foods(common_name, fiber_quantity)")
+        .eq("id", new_id)
+        .execute()
+    ).data[0]
+
+    return {
+        "plant": {
+            "id": detail["id"],
+            "status": detail["status"],
+            "position_index": detail["position_index"],
+            "common_name": detail["north_american_plant_foods"]["common_name"],
+            "fiber_quantity": detail["north_american_plant_foods"]["fiber_quantity"],
+        }
+    }

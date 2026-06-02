@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Animated,
   Easing,
   FlatList,
@@ -7,6 +8,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -16,14 +18,18 @@ import Swipeable from "react-native-gesture-handler/Swipeable";
 import * as Haptics from "expo-haptics";
 import LottieView from "lottie-react-native";
 import { Ionicons } from "@expo/vector-icons";
+import BottomSheet from "../components/BottomSheet";
 import { supabase } from "../../utils/supabase";
 import {
   ActivePlant,
+  PlantSearchResult,
   WeeklyProgress,
+  addCustomPlant,
   buyPlant,
   fetchUserActivePlants,
   fetchWeeklyProgress,
   removePlant,
+  searchPlants,
   skipPlant,
 } from "../services/api";
 
@@ -128,6 +134,115 @@ function SkippedPlaceholder() {
       <Ionicons name="checkmark-circle" size={20} color="#60a5fa" />
       <Text style={styles.skippedText}>Skipped</Text>
     </View>
+  );
+}
+
+// ── Add-your-own search sheet ─────────────────────────────────────────────────
+
+type AddPlantSheetProps = {
+  visible: boolean;
+  onClose: () => void;
+  onAdded: (plant: ActivePlant) => void;
+};
+
+function AddPlantSheet({ visible, onClose, onAdded }: AddPlantSheetProps) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<PlantSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [addingId, setAddingId] = useState<number | null>(null);
+
+  const getToken = async () => {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token ?? null;
+  };
+
+  // Reset when opened
+  useEffect(() => {
+    if (visible) {
+      setQuery("");
+      setResults([]);
+    }
+  }, [visible]);
+
+  // Debounced search whenever the query changes (while open)
+  useEffect(() => {
+    if (!visible) return;
+    setSearching(true);
+    const handle = setTimeout(async () => {
+      try {
+        const token = await getToken();
+        if (token) setResults(await searchPlants(token, query));
+      } catch {
+        setResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 250);
+    return () => clearTimeout(handle);
+  }, [query, visible]);
+
+  const handleAdd = async (plant: PlantSearchResult) => {
+    setAddingId(plant.id);
+    try {
+      const token = await getToken();
+      if (token) {
+        const added = await addCustomPlant(token, plant.id);
+        onAdded(added);
+        onClose();
+      }
+    } catch {
+      // Surface the failure inline by clearing the spinner; row stays tappable
+    } finally {
+      setAddingId(null);
+    }
+  };
+
+  return (
+    <BottomSheet visible={visible} onClose={onClose}>
+      <Text style={styles.sheetTitle}>Add your own</Text>
+      <Text style={styles.sheetSubtitle}>Search for a plant you already have.</Text>
+
+      <View style={styles.searchBox}>
+        <Ionicons name="search" size={18} color="#999" />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search plants…"
+          placeholderTextColor="#999"
+          value={query}
+          onChangeText={setQuery}
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoFocus
+        />
+      </View>
+
+      <View style={styles.resultsArea}>
+        {searching && results.length === 0 ? (
+          <ActivityIndicator color="#008080" style={{ marginVertical: 20 }} />
+        ) : results.length === 0 ? (
+          <Text style={styles.noResults}>No matches available.</Text>
+        ) : (
+          results.map((plant) => (
+            <Pressable
+              key={plant.id}
+              style={({ pressed }) => [styles.resultRow, pressed && styles.resultRowPressed]}
+              onPress={() => handleAdd(plant)}
+              disabled={addingId !== null}
+              accessibilityRole="button"
+            >
+              <Text style={styles.resultName}>{plant.common_name}</Text>
+              {addingId === plant.id ? (
+                <ActivityIndicator size="small" color="#008080" />
+              ) : (
+                <View style={styles.resultFiberBadge}>
+                  <Text style={styles.resultFiberText}>{plant.fiber_quantity}g fiber / oz</Text>
+                </View>
+              )}
+            </Pressable>
+          ))
+        )}
+      </View>
+    </BottomSheet>
   );
 }
 
@@ -337,6 +452,7 @@ export default function MyActiveIngredients() {
   const [skippedIds, setSkippedIds] = useState<Set<number>>(new Set());
   const [progress, setProgress] = useState<WeeklyProgress | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [showAddSheet, setShowAddSheet] = useState(false);
   // Tracks whether the celebration has already fired this session
   const celebrationFiredRef = useRef(false);
 
@@ -503,6 +619,16 @@ export default function MyActiveIngredients() {
               />
             )
           }
+          ListFooterComponent={
+            <Pressable
+              style={({ pressed }) => [styles.addRow, pressed && styles.addRowPressed]}
+              onPress={() => setShowAddSheet(true)}
+              accessibilityRole="button"
+            >
+              <Ionicons name="add-circle-outline" size={22} color="#008080" />
+              <Text style={styles.addRowText}>Add your own</Text>
+            </Pressable>
+          }
         />
       )}
 
@@ -510,6 +636,12 @@ export default function MyActiveIngredients() {
         visible={showCelebration}
         goal={progress?.goal ?? 0}
         onClose={() => setShowCelebration(false)}
+      />
+
+      <AddPlantSheet
+        visible={showAddSheet}
+        onClose={() => setShowAddSheet(false)}
+        onAdded={appendNewPlant}
       />
     </View>
   );
@@ -670,4 +802,53 @@ const styles = StyleSheet.create({
   consumedAction: { backgroundColor: "#4caf50" },
   discardAction: { backgroundColor: "#ef5350" },
   swipeActionText: { color: "#fff", fontSize: 12, fontWeight: "600" },
+
+  // Add-your-own footer row
+  addRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 16,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#cce7e7",
+    borderStyle: "dashed",
+    marginTop: 4,
+  },
+  addRowPressed: { backgroundColor: "#e6f4f4" },
+  addRowText: { fontSize: 16, fontWeight: "600", color: "#008080" },
+
+  // Add-your-own sheet
+  sheetTitle: { fontSize: 20, fontWeight: "700", color: "#111", marginBottom: 4 },
+  sheetSubtitle: { fontSize: 14, color: "#888", marginBottom: 16 },
+  searchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#f2f2f7",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 46,
+  },
+  searchInput: { flex: 1, fontSize: 16, color: "#111" },
+  resultsArea: { marginTop: 12, minHeight: 120 },
+  noResults: { textAlign: "center", color: "#999", fontSize: 14, marginVertical: 24 },
+  resultRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 13,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#eee",
+  },
+  resultRowPressed: { backgroundColor: "#f7f7f7" },
+  resultName: { fontSize: 16, color: "#111", fontWeight: "500" },
+  resultFiberBadge: {
+    backgroundColor: "#e6f4f4",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  resultFiberText: { fontSize: 12, color: "#008080", fontWeight: "600" },
 });
