@@ -45,13 +45,22 @@ npm start
 ```
 
 ### Start FastAPI Backend
+
+**Option 1 — VS Code Run & Debug (recommended):**
+1. Open the Run & Debug panel (`Cmd+Shift+D`)
+2. Select **"Python: Uvicorn (apps/api)"** from the dropdown
+3. Press the green play button (or `F5`)
+
+The backend will start on `http://localhost:8000` with hot reload enabled.
+
+**Option 2 — Terminal:**
 ```bash
 cd apps/api
-pip install -r requirements.txt
-python main.py
+source ../../.venv/bin/activate
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Both should run simultaneously for local development.
+Both the mobile app and backend should run simultaneously for local development.
 
 ## Communication Flow
 
