@@ -10,9 +10,10 @@ type Tab = "home" | "settings";
 
 type Props = {
   onSignOut: () => void;
+  onLinkAccount: () => void;
 };
 
-export default function TabLayout({ onSignOut }: Props) {
+export default function TabLayout({ onSignOut, onLinkAccount }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>("home");
   const insets = useSafeAreaInsets();
 
@@ -22,7 +23,7 @@ export default function TabLayout({ onSignOut }: Props) {
         {activeTab === "home" ? (
           <MyActiveIngredients />
         ) : (
-          <SettingsScreen onSignOut={onSignOut} />
+          <SettingsScreen onSignOut={onSignOut} onLinkAccount={onLinkAccount} />
         )}
       </View>
 

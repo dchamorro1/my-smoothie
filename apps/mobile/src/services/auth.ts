@@ -49,11 +49,21 @@ export async function signInWithEmail(email: string, password: string) {
   };
 }
 
+export async function deleteAccount(accessToken: string): Promise<void> {
+  const response = await fetch(`${API_URL}/api/user/`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Failed to delete account: ${response.status} ${text}`);
+  }
+}
+
 export interface UserProfile {
   id: string;
   difficulty_level: string;
   is_guest_user: boolean;
-  username: string;
 }
 
 export async function getProfile(accessToken: string): Promise<UserProfile | null> {

@@ -9,10 +9,11 @@ import SignInScreen from "./src/screens/SignInScreen";
 import OnboardingDifficultyScreen from "./src/screens/OnboardingDifficultyScreen";
 import OnboardingAllergiesScreen from "./src/screens/OnboardingAllergiesScreen";
 import TabLayout from "./src/components/TabLayout";
+import SignUpScreen from "./src/screens/SignUpScreen";
 import { supabase } from "./utils/supabase";
 import { completeOnboarding, fetchUserActivePlants, getProfile } from "./src/services/auth";
 
-type Screen = "loading" | "welcome" | "signIn" | "onboarding_difficulty" | "onboarding_allergies" | "home";
+type Screen = "loading" | "welcome" | "signIn" | "onboarding_difficulty" | "onboarding_allergies" | "home" | "signup";
 
 export default function App() {
   return (
@@ -75,6 +76,9 @@ function AppContent() {
     setIsGuestUser(false);
   };
 
+  const handleLinkAccount = () => setScreen("signup");
+  const handleAccountLinked = () => setScreen("home");
+
   if (screen === "loading") {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
@@ -84,7 +88,16 @@ function AppContent() {
     );
   }
 
-  if (screen === "home") return <TabLayout onSignOut={handleSignOut} />;
+  if (screen === "home") return <TabLayout onSignOut={handleSignOut} onLinkAccount={handleLinkAccount} />;
+
+  if (screen === "signup") {
+    return (
+      <SignUpScreen
+        onBack={() => setScreen("home")}
+        onAccountLinked={handleAccountLinked}
+      />
+    );
+  }
 
   if (screen === "onboarding_difficulty") {
     return (

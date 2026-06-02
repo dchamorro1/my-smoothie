@@ -13,7 +13,7 @@ async def get_profile(request: Request):
     resp = (
         supabase
         .from_("profiles")
-        .select("id, difficulty_level, is_guest_user, username")
+        .select("id, difficulty_level, is_guest_user")
         .eq("id", user_id)
         .execute()
     )

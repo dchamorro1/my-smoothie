@@ -29,13 +29,13 @@ export default function MyActiveIngredients() {
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
       <View style={styles.header}>
-        <Text style={styles.title}>My Active Plants</Text>
+        <Text style={styles.title}>My Daily Ingredients</Text>
       </View>
 
       {loading && (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color="#008080" />
-          <Text style={styles.loadingText}>Finding your plants...</Text>
+          <Text style={styles.loadingText}>Finding your ingredients...</Text>
         </View>
       )}
 
