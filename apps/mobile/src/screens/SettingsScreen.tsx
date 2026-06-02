@@ -17,7 +17,7 @@ import {
   getProfile,
   updateAllergies,
   UserProfile,
-} from "../services/auth";
+} from "../services/api";
 
 const DIFFICULTY_LABELS: Record<string, string> = {
   beginner: "Beginner",

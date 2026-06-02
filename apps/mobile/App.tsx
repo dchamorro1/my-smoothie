@@ -12,7 +12,7 @@ import OnboardingAllergiesScreen from "./src/screens/OnboardingAllergiesScreen";
 import TabLayout from "./src/components/TabLayout";
 import SignUpScreen from "./src/screens/SignUpScreen";
 import { supabase } from "./utils/supabase";
-import { completeOnboarding, fetchUserActivePlants, getProfile } from "./src/services/auth";
+import { completeOnboarding, fetchUserActivePlants, getProfile } from "./src/services/api";
 
 type Screen = "loading" | "welcome" | "signIn" | "onboarding_difficulty" | "onboarding_allergies" | "home" | "signup";
 

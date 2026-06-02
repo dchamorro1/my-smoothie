@@ -25,7 +25,7 @@ import {
   fetchWeeklyProgress,
   removePlant,
   skipPlant,
-} from "../services/auth";
+} from "../services/api";
 
 const HARD_SWIPE_THRESHOLD = -220;
 

@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { signInWithEmail } from "../services/auth";
+import { signInWithEmail } from "../services/api";
 
 type Props = {
   onBack: () => void;

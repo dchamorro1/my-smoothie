@@ -7,7 +7,7 @@ import { useState } from "react";
 import BrandLogo from "../components/welcome/BrandLogo";
 import HeroArt from "../components/welcome/HeroArt";
 import styles from "../components/welcome/welcomeStyles";
-import { signUpGuest } from "../services/auth";
+import { signUpGuest } from "../services/api";
 
 type Props = {
   onGuestCreated: (isGuest: boolean) => void;
