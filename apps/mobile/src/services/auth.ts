@@ -127,6 +127,27 @@ export async function removePlant(
   return data.new_plant ?? null;
 }
 
+export async function fetchAllergies(accessToken: string): Promise<string[]> {
+  const response = await fetch(`${API_URL}/api/allergies/`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok) throw new Error(`Failed to fetch allergies: ${response.status}`);
+  const data = await response.json();
+  return data.allergies;
+}
+
+export async function updateAllergies(accessToken: string, allergies: string[]): Promise<void> {
+  const response = await fetch(`${API_URL}/api/allergies/`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ allergies }),
+  });
+  if (!response.ok) throw new Error(`Failed to update allergies: ${response.status}`);
+}
+
 export interface WeeklyProgress {
   consumed: number;
   goal: number;
