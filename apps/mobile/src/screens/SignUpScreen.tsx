@@ -82,7 +82,7 @@ export default function SignUpScreen({ onBack, onAccountLinked }: Props) {
               onPress={onAccountLinked}
               accessibilityRole="button"
             >
-              <Text style={styles.buttonText}>Back to settings</Text>
+              <Text style={styles.buttonText}>Back to home</Text>
             </Pressable>
           </View>
         </View>
