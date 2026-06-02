@@ -1,1 +1,1 @@
-from app.services.calculate_current_user_active_plants import calculate_current_user_active_plants
+from app.services.calculate_current_user_active_plants import calculate_and_assign_user_active_plants

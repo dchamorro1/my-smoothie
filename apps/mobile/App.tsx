@@ -1,14 +1,18 @@
 import "./src/i18n";
 
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, View, Text } from "react-native";
+import { ActivityIndicator, Text, View } from "react-native";
 import { SafeAreaProvider, initialWindowMetrics } from "react-native-safe-area-context";
-import WelcomeScreen from "./src/screens/WelcomeScreen";
-import MyActiveIngredients from "./src/screens/MyActiveIngredients";
-import SignInScreen from "./src/screens/SignInScreen";
-import { supabase } from "./utils/supabase";
 
-type AuthScreen = "welcome" | "signIn";
+import WelcomeScreen from "./src/screens/WelcomeScreen";
+import SignInScreen from "./src/screens/SignInScreen";
+import OnboardingDifficultyScreen from "./src/screens/OnboardingDifficultyScreen";
+import OnboardingAllergiesScreen from "./src/screens/OnboardingAllergiesScreen";
+import TabLayout from "./src/components/TabLayout";
+import { supabase } from "./utils/supabase";
+import { completeOnboarding, fetchUserActivePlants, getProfile } from "./src/services/auth";
+
+type Screen = "loading" | "welcome" | "signIn" | "onboarding_difficulty" | "onboarding_allergies" | "home";
 
 export default function App() {
   return (
@@ -19,24 +23,59 @@ export default function App() {
 }
 
 function AppContent() {
-  const [initializing, setInitializing] = useState(true);
-  const [hasSession, setHasSession] = useState(false);
-  const [authScreen, setAuthScreen] = useState<AuthScreen>("welcome");
+  const [screen, setScreen] = useState<Screen>("loading");
+  const [selectedDifficulty, setSelectedDifficulty] = useState<string | null>(null);
+  const [isGuestUser, setIsGuestUser] = useState(false);
 
   useEffect(() => {
     const restoreSession = async () => {
-      const { data, error } = await supabase.auth.getSession();
-      if (error) {
-        console.error("Session restore failed:", error.message);
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        setScreen("welcome");
+        return;
       }
-      setHasSession(!!data.session);
-      setInitializing(false);
+      const profile = await getProfile(data.session.access_token).catch(() => null);
+      setScreen(profile ? "home" : "onboarding_difficulty");
     };
 
     restoreSession();
   }, []);
 
-  if (initializing) {
+  const handleGuestCreated = (guest: boolean) => {
+    setIsGuestUser(guest);
+    setScreen("onboarding_difficulty");
+  };
+
+  const handleSignedIn = async () => {
+    const { data } = await supabase.auth.getSession();
+    if (!data.session) return;
+    const profile = await getProfile(data.session.access_token).catch(() => null);
+    setScreen(profile ? "home" : "onboarding_difficulty");
+  };
+
+  const handleDifficultySelected = (difficulty: string) => {
+    setSelectedDifficulty(difficulty);
+    setScreen("onboarding_allergies");
+  };
+
+  const handleAllergiesSubmitted = async (allergies: string[]) => {
+    const { data } = await supabase.auth.getSession();
+    if (!data.session) throw new Error("No session found.");
+    const token = data.session.access_token;
+
+    await completeOnboarding(token, selectedDifficulty!, allergies, isGuestUser);
+    await fetchUserActivePlants(token);
+
+    setScreen("home");
+  };
+
+  const handleSignOut = () => {
+    setScreen("welcome");
+    setSelectedDifficulty(null);
+    setIsGuestUser(false);
+  };
+
+  if (screen === "loading") {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator />
@@ -45,76 +84,42 @@ function AppContent() {
     );
   }
 
-  if (hasSession) {
+  if (screen === "home") return <TabLayout onSignOut={handleSignOut} />;
+
+  if (screen === "onboarding_difficulty") {
     return (
-      <MyActiveIngredients
-        onSignOut={() => {
-          setHasSession(false);
-          setAuthScreen("welcome");
+      <OnboardingDifficultyScreen
+        onBack={async () => {
+          await supabase.auth.signOut();
+          handleSignOut();
         }}
+        onContinue={handleDifficultySelected}
       />
     );
   }
 
-  if (authScreen === "signIn") {
+  if (screen === "onboarding_allergies") {
+    return (
+      <OnboardingAllergiesScreen
+        onBack={() => setScreen("onboarding_difficulty")}
+        onContinue={handleAllergiesSubmitted}
+      />
+    );
+  }
+
+  if (screen === "signIn") {
     return (
       <SignInScreen
-        onBack={() => setAuthScreen("welcome")}
-        onSignedIn={() => setHasSession(true)}
+        onBack={() => setScreen("welcome")}
+        onSignedIn={handleSignedIn}
       />
     );
   }
 
   return (
     <WelcomeScreen
-      onGuestCreated={() => setHasSession(true)}
-      onSignIn={() => setAuthScreen("signIn")}
+      onGuestCreated={handleGuestCreated}
+      onSignIn={() => setScreen("signIn")}
     />
   );
 }
-
-
-// type Todo = {
-//   id: number;
-//   name: string;
-// };
-
-// export default function App() {
-//  const [todos, setTodos] = useState<Todo[]>([]);
-
-//  useEffect(() => {
-//    const getTodos = async () => {
-//       try {
-//         const { data: todos, error } = await supabase.from('todos').select();
-
-//         if (error) {
-//           console.error('Error fetching todos:', error.message);
-//           return;
-//         }
-
-//         if (todos && todos.length > 0) {
-//           setTodos(todos);
-//         }
-//       } catch (error) {
-//         if (error instanceof Error) {
-//           console.error('Error fetching todos:', error.message);
-//         } else {
-//           console.error('Error fetching todos:', error);
-//         }
-//       }
-//     };
-
-//     getTodos();
-//   }, []);
-
-//   return (
-//     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-//       <Text>Todo List</Text>
-//       <FlatList
-//         data={todos}
-//         keyExtractor={(item) => item.id.toString()}
-//         renderItem={({ item }) => <Text key={item.id}>{item.name}</Text>}
-//       />
-//     </View>
-//   );
-// };

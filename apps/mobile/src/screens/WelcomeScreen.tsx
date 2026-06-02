@@ -7,10 +7,10 @@ import { useState } from "react";
 import BrandLogo from "../components/welcome/BrandLogo";
 import HeroArt from "../components/welcome/HeroArt";
 import styles from "../components/welcome/welcomeStyles";
-import { fetchUserActivePlantsCount, signUpGuest } from "../services/auth";
+import { signUpGuest } from "../services/auth";
 
 type Props = {
-  onGuestCreated: () => void;
+  onGuestCreated: (isGuest: boolean) => void;
   onSignIn: () => void;
 };
 
@@ -26,10 +26,8 @@ export default function WelcomeScreen({ onGuestCreated, onSignIn }: Props) {
     setErrorMessage(null);
 
     try {
-      const { session } = await signUpGuest();
-      const count = await fetchUserActivePlantsCount(session.access_token);
-      console.log("Current active plants count:", count);
-      onGuestCreated();
+      await signUpGuest();
+      onGuestCreated(true);
     } catch (error) {
       if (error instanceof Error) {
         setErrorMessage(error.message);

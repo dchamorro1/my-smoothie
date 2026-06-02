@@ -4,9 +4,7 @@ import { supabase } from "../../utils/supabase";
 
 const DEFAULT_API_URL = Platform.OS === "android"
   ? "http://10.0.2.2:8000"
-  : "http://192.168.1.70:8000";
-
-// For local dev, update 192.168.1.70 with what you get when running ipconfig getifaddr en0
+  : "http://localhost:8000";
 
 const extraApiUrl = (Constants.expoConfig?.extra?.apiUrl ?? Constants.manifest?.extra?.apiUrl) as string | undefined;
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? extraApiUrl ?? DEFAULT_API_URL;
@@ -51,12 +49,55 @@ export async function signInWithEmail(email: string, password: string) {
   };
 }
 
-export async function fetchUserActivePlantsCount(accessToken: string) {
-  console.log("fetchUserActivePlantsCount called with token:", accessToken ? `${accessToken.substring(0, 20)}...` : "UNDEFINED/NULL");
-  console.log("API_URL:", API_URL);
+export interface UserProfile {
+  id: string;
+  difficulty_level: string;
+  is_guest_user: boolean;
+  username: string;
+}
 
+export async function getProfile(accessToken: string): Promise<UserProfile | null> {
+  const response = await fetch(`${API_URL}/api/profile/`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Failed to fetch profile: ${response.status}`);
+  return response.json();
+}
+
+export async function completeOnboarding(
+  accessToken: string,
+  difficultyLevel: string,
+  allergies: string[],
+  isGuestUser: boolean
+): Promise<void> {
+  const response = await fetch(`${API_URL}/api/onboarding/`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      difficulty_level: difficultyLevel,
+      allergies,
+      is_guest_user: isGuestUser,
+    }),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Onboarding failed: ${response.status} ${text}`);
+  }
+}
+
+export interface ActivePlant {
+  id: number;
+  common_name: string;
+  fiber_quantity: number;
+}
+
+export async function fetchUserActivePlants(accessToken: string): Promise<ActivePlant[]> {
   if (!accessToken) {
-    throw new Error("No access token provided to fetchUserActivePlantsCount");
+    throw new Error("No access token provided to fetchUserActivePlants");
   }
 
   const response = await fetch(`${API_URL}/api/user-active-plants/`, {
@@ -74,9 +115,9 @@ export async function fetchUserActivePlantsCount(accessToken: string) {
 
   const data = await response.json();
 
-  if (typeof data.count !== "number") {
+  if (!Array.isArray(data.plants)) {
     throw new Error("Unexpected response format from backend.");
   }
 
-  return data.count;
+  return data.plants;
 }

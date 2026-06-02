@@ -55,8 +55,7 @@ These are not committed. Get them from the Supabase project dashboard under Proj
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health` | Health check (no auth required) |
-| GET | `/api/user-active-plants/` | Count of user's active plants |
-| POST | `/api/recommendations/` | Get smoothie recommendations (stub — not yet implemented) |
+| GET | `/api/user-active-plants/` | User's active plants (calculates and seeds on first visit) |
 
 All routes except `/health`, `/docs`, `/openapi.json`, `/redoc` require a valid Supabase JWT.
 
@@ -69,12 +68,9 @@ apps/api/
     config.py                      — Pydantic settings (reads .env)
     middleware/auth.py             — JWT verification middleware
     routes/
-      recommendations.py           — Recommendation endpoint (TODO: implement logic)
-      user_active_plants.py        — Active plants count endpoint
+      user_active_plants.py        — Active plants endpoint
     services/
-      recommendations.py           — Recommendation business logic
       calculate_current_user_active_plants.py
-    schemas/recommendations.py    — Pydantic request/response models
     utils/supabase.py              — Supabase client helper
 
 apps/mobile/
