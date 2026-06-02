@@ -18,6 +18,7 @@ type Props = {
 
 export default function SettingsScreen({ onSignOut, onLinkAccount }: Props) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [email, setEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -25,6 +26,7 @@ export default function SettingsScreen({ onSignOut, onLinkAccount }: Props) {
       try {
         const { data } = await supabase.auth.getSession();
         if (!data.session) return;
+        setEmail(data.session.user.email ?? null);
         const p = await getProfile(data.session.access_token);
         setProfile(p);
       } finally {
@@ -88,22 +90,29 @@ export default function SettingsScreen({ onSignOut, onLinkAccount }: Props) {
         </View>
       </View>
 
-      {profile?.is_guest_user && (
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>ACCOUNT</Text>
-          <Pressable
-            style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-            onPress={onLinkAccount}
-            accessibilityRole="button"
-          >
-            <Text style={styles.rowLabel}>Link to account</Text>
-            <Text style={styles.rowChevron}>›</Text>
-          </Pressable>
-          <Text style={styles.guestWarningText}>
-            Save your plants and settings permanently with an email and password.
-          </Text>
-        </View>
-      )}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>ACCOUNT</Text>
+        {profile?.is_guest_user ? (
+          <>
+            <Pressable
+              style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+              onPress={onLinkAccount}
+              accessibilityRole="button"
+            >
+              <Text style={styles.rowLabel}>Link to account</Text>
+              <Text style={styles.rowChevron}>›</Text>
+            </Pressable>
+            <Text style={styles.guestWarningText}>
+              Save your plants and settings permanently with an email and password.
+            </Text>
+          </>
+        ) : (
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Signed in as</Text>
+            <Text style={styles.rowValue} numberOfLines={1}>{email ?? "—"}</Text>
+          </View>
+        )}
+      </View>
 
       <View style={styles.section}>
         <Pressable

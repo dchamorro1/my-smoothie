@@ -45,10 +45,11 @@ export default function SignUpScreen({ onBack, onAccountLinked }: Props) {
 
       const { data: sessionData } = await supabase.auth.getSession();
       if (sessionData.session) {
-        await supabase
+        const { error: profileError } = await supabase
           .from("profiles")
           .update({ is_guest_user: false })
           .eq("id", sessionData.session.user.id);
+        if (profileError) throw profileError;
       }
 
       setSuccess(true);
@@ -131,10 +132,16 @@ export default function SignUpScreen({ onBack, onAccountLinked }: Props) {
               placeholder="Password (min. 6 characters)"
               placeholderTextColor="#879184"
               secureTextEntry
-              style={styles.input}
+              style={[
+                styles.input,
+                password.length > 0 && password.length < 6 && styles.inputError,
+              ]}
               textContentType="newPassword"
               value={password}
             />
+            {password.length > 0 && password.length < 6 && (
+              <Text style={styles.errorText}>Password must be at least 6 characters.</Text>
+            )}
 
             <TextInput
               autoCapitalize="none"
