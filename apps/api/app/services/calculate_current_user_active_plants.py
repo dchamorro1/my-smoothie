@@ -63,11 +63,14 @@ def calculate_and_assign_user_active_plants(user_id: str, count: Optional[int] =
     active_resp = (
         supabase
         .from_("user_active_plants")
-        .select("north_american_plant_foods_id")
+        .select("north_american_plant_foods_id, position_index")
         .eq("profiles_id", user_id)
         .execute()
     )
-    active_plant_ids = {row["north_american_plant_foods_id"] for row in (active_resp.data or [])}
+    active_rows = active_resp.data or []
+    active_plant_ids = {row["north_american_plant_foods_id"] for row in active_rows}
+    # New plants are appended after any existing ones
+    base_index = max((row["position_index"] or 0 for row in active_rows), default=-1) + 1
 
     # Exclude plants already cycled through this week (resets every Monday 12am UTC)
     week_start = _current_week_start_iso()
@@ -130,7 +133,7 @@ def calculate_and_assign_user_active_plants(user_id: str, count: Optional[int] =
             "profiles_id": user_id,
             "north_american_plant_foods_id": p["id"],
             "status": "pending",
-            "position_index": i,
+            "position_index": base_index + i,
         }
         for i, p in enumerate(selected)
     ]

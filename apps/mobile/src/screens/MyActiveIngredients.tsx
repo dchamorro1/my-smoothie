@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Animated,
-  ActivityIndicator,
   Easing,
   FlatList,
   Modal,
@@ -128,6 +127,67 @@ function SkippedPlaceholder() {
     <View style={styles.skippedPlaceholder}>
       <Ionicons name="checkmark-circle" size={20} color="#60a5fa" />
       <Text style={styles.skippedText}>Skipped</Text>
+    </View>
+  );
+}
+
+// ── Loading shimmer ───────────────────────────────────────────────────────────
+
+function ShimmerCard() {
+  const shimmer = useRef(new Animated.Value(0)).current;
+  const [width, setWidth] = useState(0);
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(shimmer, {
+        toValue: 1,
+        duration: 1200,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
+
+  const translateX = shimmer.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-width, width],
+  });
+
+  return (
+    <View
+      style={[styles.card, styles.skeletonCard]}
+      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+    >
+      <View style={styles.skeletonCircle} />
+      <View style={styles.skeletonLine} />
+      <View style={styles.skeletonBadge} />
+
+      {width > 0 && (
+        <Animated.View
+          style={[StyleSheet.absoluteFill, { transform: [{ translateX }] }]}
+          pointerEvents="none"
+        >
+          <LinearGradient
+            colors={["transparent", "rgba(255,255,255,0.65)", "transparent"]}
+            locations={[0.35, 0.5, 0.65]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={{ flex: 1 }}
+          />
+        </Animated.View>
+      )}
+    </View>
+  );
+}
+
+function LoadingShimmer() {
+  return (
+    <View style={styles.list}>
+      {[0, 1, 2, 3, 4].map((i) => (
+        <ShimmerCard key={i} />
+      ))}
     </View>
   );
 }
@@ -411,12 +471,7 @@ export default function MyActiveIngredients() {
         )}
       </LinearGradient>
 
-      {loading && (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#008080" />
-          <Text style={styles.loadingText}>Finding your ingredients...</Text>
-        </View>
-      )}
+      {loading && <LoadingShimmer />}
 
       {!loading && error && (
         <View style={styles.centered}>
@@ -553,7 +608,6 @@ const styles = StyleSheet.create({
 
   // List
   centered: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
-  loadingText: { marginTop: 12, color: "#555", fontSize: 15 },
   errorText: { color: "#c00", fontSize: 15, textAlign: "center" },
   emptyText: { color: "#777", fontSize: 15, textAlign: "center" },
   list: { padding: 16, gap: 12 },
@@ -571,6 +625,10 @@ const styles = StyleSheet.create({
   },
   cardBought: { backgroundColor: "#fff" },
   cardPending: { backgroundColor: "#fffbeb" },
+  skeletonCard: { backgroundColor: "#fff", overflow: "hidden" },
+  skeletonCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: "#e5e7eb" },
+  skeletonLine: { flex: 1, height: 16, borderRadius: 6, backgroundColor: "#e5e7eb" },
+  skeletonBadge: { width: 84, height: 24, borderRadius: 20, backgroundColor: "#e5e7eb" },
   iconButton: { padding: 2 },
   plantName: { flex: 1, fontSize: 17, fontWeight: "600", color: "#111" },
   fiberBadge: {

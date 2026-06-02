@@ -99,6 +99,21 @@ export async function completeOnboarding(
   }
 }
 
+export async function updateDifficulty(accessToken: string, difficultyLevel: string): Promise<void> {
+  const response = await fetch(`${API_URL}/api/profile/`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ difficulty_level: difficultyLevel }),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Failed to update difficulty: ${response.status} ${text}`);
+  }
+}
+
 export interface ActivePlant {
   id: number;
   status: "bought" | "pending";
