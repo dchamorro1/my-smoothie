@@ -282,7 +282,14 @@ export default function SettingsScreen({ onSignOut, onLinkAccount }: Props) {
   }, []);
 
   const handleSignOut = async () => {
-    if (profile?.is_guest_user) {
+    // Determine guest status from the live session, not the async profile state —
+    // otherwise tapping before the profile loads falls through to a plain sign-out
+    // and skips data deletion. `is_anonymous` is the reliable source of truth.
+    const { data } = await supabase.auth.getSession();
+    const isGuest =
+      data.session?.user?.is_anonymous === true || profile?.is_guest_user === true;
+
+    if (isGuest) {
       Alert.alert(
         "Sign out as guest?",
         "You're using a guest account. Signing out will permanently delete your data — your active plants, allergies, and settings will be lost.\n\nCreate an account first to save your progress.",

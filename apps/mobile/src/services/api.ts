@@ -114,6 +114,44 @@ export async function updateDifficulty(accessToken: string, difficultyLevel: str
   }
 }
 
+export interface CalendarStats {
+  target: number;
+  goal: number;
+  events: string[]; // UTC ISO timestamps of consumed plants
+}
+
+export async function fetchCalendarStats(
+  accessToken: string,
+  startISO: string,
+  endISO: string
+): Promise<CalendarStats> {
+  const params = `start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`;
+  const response = await fetch(`${API_URL}/api/stats/calendar?${params}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok) throw new Error(`Failed to fetch stats: ${response.status}`);
+  return response.json();
+}
+
+export interface DayPlants {
+  plants: { common_name: string; fiber_quantity: number }[];
+  total_plants: number;
+  total_fiber: number;
+}
+
+export async function fetchDayPlants(
+  accessToken: string,
+  startISO: string,
+  endISO: string
+): Promise<DayPlants> {
+  const params = `start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`;
+  const response = await fetch(`${API_URL}/api/stats/day?${params}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok) throw new Error(`Failed to fetch day: ${response.status}`);
+  return response.json();
+}
+
 export interface ActivePlant {
   id: number;
   status: "bought" | "pending";

@@ -2,24 +2,21 @@ import difflib
 
 from fastapi import APIRouter, Query, Request
 
-from app.services.calculate_current_user_active_plants import (
-    _current_season_column,
-    _current_week_start_iso,
-)
+from app.services.calculate_current_user_active_plants import _current_week_start_iso
 from app.utils.supabase import get_supabase_client
 
 router = APIRouter(prefix="/api/plants", tags=["plants"])
 
+MAX_RESULTS = 8
 FUZZY_THRESHOLD = 0.4
 
 
 def _selectable_candidates(supabase, user_id: str) -> list[dict]:
     """All plants the user is allowed to manually add right now:
-    active + in-season, not an allergen, not already in their list,
-    and not consumed earlier this week.
+    active, not an allergen, not already in their list, and not consumed
+    earlier this week. Season is intentionally ignored for manual search —
+    if the user has the plant, they can add it regardless of season.
     """
-    season_col = _current_season_column()
-
     allergies = (
         supabase
         .from_("user_allergies")
@@ -56,7 +53,6 @@ def _selectable_candidates(supabase, user_id: str) -> list[dict]:
         .from_("north_american_plant_foods")
         .select("id, common_name, fiber_quantity, alllergen")
         .eq("is_active", True)
-        .eq(season_col, True)
         .execute()
     ).data or []
 
@@ -80,15 +76,15 @@ async def search_plants(request: Request, q: str = Query("", max_length=64)):
 
     query = q.strip().lower()
     if not query:
-        # No query yet — return the full alphabetical candidate list.
+        # No query yet — return an alphabetical starter list.
         results = sorted(candidates, key=lambda c: c["common_name"].lower())
-        return {"results": results}
+        return {"results": results[:MAX_RESULTS]}
 
     # Prefix match first
     prefix = [c for c in candidates if c["common_name"].lower().startswith(query)]
     if prefix:
         prefix.sort(key=lambda c: c["common_name"].lower())
-        return {"results": prefix}
+        return {"results": prefix[:MAX_RESULTS]}
 
     # Fuzzy fallback (ranked by similarity)
     scored = []
@@ -97,4 +93,4 @@ async def search_plants(request: Request, q: str = Query("", max_length=64)):
         if ratio >= FUZZY_THRESHOLD:
             scored.append((ratio, c))
     scored.sort(key=lambda x: x[0], reverse=True)
-    return {"results": [c for _, c in scored]}
+    return {"results": [c for _, c in scored[:MAX_RESULTS]]}

@@ -4,9 +4,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import MyActiveIngredients from "../screens/MyActiveIngredients";
+import StatsScreen from "../screens/StatsScreen";
 import SettingsScreen from "../screens/SettingsScreen";
 
-type Tab = "home" | "settings";
+type Tab = "home" | "stats" | "settings";
+type IconName = "home" | "stats-chart" | "settings";
 
 type Props = {
   onSignOut: () => void;
@@ -20,9 +22,9 @@ export default function TabLayout({ onSignOut, onLinkAccount }: Props) {
   return (
     <View style={styles.container}>
       <View style={styles.screen}>
-        {activeTab === "home" ? (
-          <MyActiveIngredients />
-        ) : (
+        {activeTab === "home" && <MyActiveIngredients />}
+        {activeTab === "stats" && <StatsScreen />}
+        {activeTab === "settings" && (
           <SettingsScreen onSignOut={onSignOut} onLinkAccount={onLinkAccount} />
         )}
       </View>
@@ -33,6 +35,12 @@ export default function TabLayout({ onSignOut, onLinkAccount }: Props) {
           label="Home"
           active={activeTab === "home"}
           onPress={() => setActiveTab("home")}
+        />
+        <TabItem
+          icon="stats-chart"
+          label="Stats"
+          active={activeTab === "stats"}
+          onPress={() => setActiveTab("stats")}
         />
         <TabItem
           icon="settings"
@@ -47,16 +55,14 @@ export default function TabLayout({ onSignOut, onLinkAccount }: Props) {
 }
 
 type TabItemProps = {
-  icon: "home" | "settings";
+  icon: IconName;
   label: string;
   active: boolean;
   onPress: () => void;
 };
 
 function TabItem({ icon, label, active, onPress }: TabItemProps) {
-  const iconName = active
-    ? icon
-    : (`${icon}-outline` as "home-outline" | "settings-outline");
+  const iconName = active ? icon : (`${icon}-outline` as `${IconName}-outline`);
 
   return (
     <Pressable
