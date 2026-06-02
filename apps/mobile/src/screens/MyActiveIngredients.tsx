@@ -3,20 +3,98 @@ import {
   Animated,
   ActivityIndicator,
   FlatList,
+  Modal,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-
-const HARD_SWIPE_THRESHOLD = -220; // px past which a swipe auto-skips
 import { SafeAreaView } from "react-native-safe-area-context";
-// @ts-ignore — legacy Swipeable, deprecated in favour of ReanimatedSwipeable but works without react-native-reanimated
+import { LinearGradient } from "expo-linear-gradient";
+// @ts-ignore — legacy Swipeable, works without react-native-reanimated
 import Swipeable from "react-native-gesture-handler/Swipeable";
 import * as Haptics from "expo-haptics";
+import LottieView from "lottie-react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "../../utils/supabase";
-import { ActivePlant, buyPlant, fetchUserActivePlants, removePlant, skipPlant } from "../services/auth";
+import {
+  ActivePlant,
+  WeeklyProgress,
+  buyPlant,
+  fetchUserActivePlants,
+  fetchWeeklyProgress,
+  removePlant,
+  skipPlant,
+} from "../services/auth";
+
+const HARD_SWIPE_THRESHOLD = -220;
+
+// ── Progress bar ─────────────────────────────────────────────────────────────
+
+function ProgressBar({ consumed, goal }: { consumed: number; goal: number }) {
+  const isOverGoal = consumed >= goal;
+  const pct = Math.min(consumed / goal, 1);
+
+  return (
+    <View style={styles.progressContainer}>
+      <View style={styles.progressLabelRow}>
+        <Text style={styles.progressLabel}>
+          {isOverGoal ? "✨ " : ""}
+          <Text style={styles.progressCount}>{consumed}</Text>
+          {" / "}
+          <Text style={styles.progressCount}>{goal}</Text>
+          {"  plants consumed this week"}
+          {isOverGoal ? " ✨" : ""}
+        </Text>
+      </View>
+      <View style={styles.progressTrack}>
+        {isOverGoal ? (
+          <LinearGradient
+            colors={["#f59e0b", "#ef4444", "#8b5cf6"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.progressFill}
+          />
+        ) : (
+          <View style={[styles.progressFill, { width: `${pct * 100}%` as any }]} />
+        )}
+      </View>
+    </View>
+  );
+}
+
+// ── Celebration modal ────────────────────────────────────────────────────────
+
+function CelebrationModal({ visible, goal, onClose }: { visible: boolean; goal: number; onClose: () => void }) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.celebrationOverlay}>
+        <View style={styles.celebrationCard}>
+          {/* Place a Lottie rabbit animation at apps/mobile/assets/rabbit-celebrate.json
+              Download one from https://lottiefiles.com/search?q=rabbit+eating+carrot */}
+          <LottieView
+            // @ts-ignore
+            source={require("../../assets/rabbit-celebrate.json")}
+            autoPlay
+            loop={false}
+            style={styles.lottie}
+          />
+          <Text style={styles.celebrationTitle}>Weekly goal reached! 🎉</Text>
+          <Text style={styles.celebrationSubtitle}>
+            You've consumed {goal} plants this week. That's incredible!
+          </Text>
+          <Pressable
+            style={({ pressed }) => [styles.celebrationButton, pressed && { opacity: 0.85 }]}
+            onPress={onClose}
+            accessibilityRole="button"
+          >
+            <Text style={styles.celebrationButtonText}>Keep going 🐇</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
 
 // ── Skipped placeholder ──────────────────────────────────────────────────────
 
@@ -58,7 +136,10 @@ function PlantRow({ item, onBuy, onRemove, onSkip }: PlantRowProps) {
     onRemove(item.id, reason);
   };
 
-  const pendingRightActions = (_progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>) => {
+  const pendingRightActions = (
+    _progress: Animated.AnimatedInterpolation<number>,
+    dragX: Animated.AnimatedInterpolation<number>
+  ) => {
     if (!dragXRef.current) {
       dragXRef.current = dragX as unknown as Animated.Value;
       dragXRef.current.addListener(({ value }) => {
@@ -141,10 +222,20 @@ export default function MyActiveIngredients() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [skippedIds, setSkippedIds] = useState<Set<number>>(new Set());
+  const [progress, setProgress] = useState<WeeklyProgress | null>(null);
+  const [showCelebration, setShowCelebration] = useState(false);
+  // Tracks whether the celebration has already fired this session
+  const celebrationFiredRef = useRef(false);
 
   useEffect(() => {
     loadPlants();
+    loadProgress();
   }, []);
+
+  const getToken = async () => {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token ?? null;
+  };
 
   const loadPlants = async () => {
     try {
@@ -159,9 +250,26 @@ export default function MyActiveIngredients() {
     }
   };
 
-  const getToken = async () => {
-    const { data } = await supabase.auth.getSession();
-    return data.session?.access_token ?? null;
+  const loadProgress = async () => {
+    const token = await getToken();
+    if (!token) return;
+    try {
+      const result = await fetchWeeklyProgress(token);
+      updateProgress(result);
+    } catch {
+      // Non-critical — fail silently
+    }
+  };
+
+  const updateProgress = (next: WeeklyProgress) => {
+    setProgress((prev) => {
+      const wasBelow = !prev || prev.consumed < next.goal;
+      if (wasBelow && next.consumed >= next.goal && !celebrationFiredRef.current) {
+        celebrationFiredRef.current = true;
+        setShowCelebration(true);
+      }
+      return next;
+    });
   };
 
   const appendNewPlant = (newPlant: ActivePlant | null) => {
@@ -184,7 +292,6 @@ export default function MyActiveIngredients() {
         return a.status === "bought" ? -1 : 1;
       });
     });
-
     try {
       const token = await getToken();
       if (token) await buyPlant(token, plantId);
@@ -195,14 +302,11 @@ export default function MyActiveIngredients() {
   };
 
   const handleSkip = async (plantId: number) => {
-    // Show "Skipped" placeholder briefly, then remove and append replacement
     setSkippedIds((prev) => new Set(prev).add(plantId));
-
     setTimeout(() => {
       setSkippedIds((prev) => { const s = new Set(prev); s.delete(plantId); return s; });
       setPlants((prev) => prev.filter((p) => p.id !== plantId));
     }, 800);
-
     try {
       const token = await getToken();
       if (token) {
@@ -218,8 +322,11 @@ export default function MyActiveIngredients() {
   };
 
   const handleRemove = async (plantId: number, reason: "consumed" | "discarded") => {
+    // Optimistically increment progress if consuming
+    if (reason === "consumed" && progress) {
+      updateProgress({ ...progress, consumed: progress.consumed + 1 });
+    }
     setPlants((prev) => prev.filter((p) => p.id !== plantId));
-
     try {
       const token = await getToken();
       if (token) {
@@ -228,7 +335,10 @@ export default function MyActiveIngredients() {
       }
     } catch {
       const token = await getToken();
-      if (token) setPlants(await fetchUserActivePlants(token));
+      if (token) {
+        setPlants(await fetchUserActivePlants(token));
+        loadProgress();
+      }
     }
   };
 
@@ -237,6 +347,10 @@ export default function MyActiveIngredients() {
       <View style={styles.header}>
         <Text style={styles.title}>My Daily Ingredients</Text>
       </View>
+
+      {progress && (
+        <ProgressBar consumed={progress.consumed} goal={progress.goal} />
+      )}
 
       {loading && (
         <View style={styles.centered}>
@@ -276,6 +390,12 @@ export default function MyActiveIngredients() {
           }
         />
       )}
+
+      <CelebrationModal
+        visible={showCelebration}
+        goal={progress?.goal ?? 0}
+        onClose={() => setShowCelebration(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -293,6 +413,76 @@ const styles = StyleSheet.create({
     borderBottomColor: "#eee",
   },
   title: { fontSize: 20, fontWeight: "700", color: "#111" },
+
+  // Progress bar
+  progressContainer: {
+    backgroundColor: "#fff",
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
+  progressLabelRow: { marginBottom: 6 },
+  progressLabel: { fontSize: 13, color: "#555" },
+  progressCount: { fontWeight: "700", color: "#111" },
+  progressTrack: {
+    height: 8,
+    backgroundColor: "#e5e7eb",
+    borderRadius: 999,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 999,
+    backgroundColor: "#008080",
+  },
+
+  // Celebration modal
+  celebrationOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  celebrationCard: {
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    padding: 28,
+    alignItems: "center",
+    width: "100%",
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 10,
+  },
+  lottie: { width: 200, height: 200 },
+  celebrationTitle: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#111",
+    marginTop: 8,
+    textAlign: "center",
+  },
+  celebrationSubtitle: {
+    fontSize: 15,
+    color: "#555",
+    textAlign: "center",
+    marginTop: 8,
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  celebrationButton: {
+    backgroundColor: "#008080",
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 999,
+  },
+  celebrationButtonText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+
+  // List
   centered: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
   loadingText: { marginTop: 12, color: "#555", fontSize: 15 },
   errorText: { color: "#c00", fontSize: 15, textAlign: "center" },

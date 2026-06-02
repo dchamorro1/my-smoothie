@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.middleware.auth import JWTVerificationMiddleware
 from app.config import settings
-from app.routes import onboarding, profile, user, user_active_plants
+from app.routes import onboarding, profile, progress, user, user_active_plants
 
 app = FastAPI(title="Smoothie Recommendation Engine")
 
@@ -21,6 +21,7 @@ app.add_middleware(JWTVerificationMiddleware)
 # Routes
 app.include_router(profile.router)
 app.include_router(onboarding.router)
+app.include_router(progress.router)
 app.include_router(user.router)
 app.include_router(user_active_plants.router)
 

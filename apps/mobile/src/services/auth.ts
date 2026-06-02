@@ -127,6 +127,30 @@ export async function removePlant(
   return data.new_plant ?? null;
 }
 
+export interface WeeklyProgress {
+  consumed: number;
+  goal: number;
+}
+
+export function getLocalWeekStart(): string {
+  const now = new Date();
+  const dayOfWeek = now.getDay(); // 0 = Sun
+  const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - daysToMonday);
+  monday.setHours(0, 0, 0, 0);
+  return monday.toISOString();
+}
+
+export async function fetchWeeklyProgress(accessToken: string): Promise<WeeklyProgress> {
+  const weekStart = encodeURIComponent(getLocalWeekStart());
+  const response = await fetch(`${API_URL}/api/progress/?week_start=${weekStart}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok) throw new Error(`Failed to fetch progress: ${response.status}`);
+  return response.json();
+}
+
 export async function skipPlant(accessToken: string, plantId: number): Promise<ActivePlant | null> {
   const response = await fetch(`${API_URL}/api/user-active-plants/${plantId}/skip`, {
     method: "POST",
