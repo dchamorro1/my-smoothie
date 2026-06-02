@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+  Animated,
   ActivityIndicator,
   Alert,
+  Easing,
   Modal,
   Pressable,
   ScrollView,
@@ -44,14 +46,33 @@ type AllergiesSheetProps = {
 
 function AllergiesSheet({ visible, onClose, accessToken }: AllergiesSheetProps) {
   const insets = useSafeAreaInsets();
+  const [mounted, setMounted] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [noneSelected, setNoneSelected] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  const backdropAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(500)).current;
+
+  // Animate in when visible becomes true
   useEffect(() => {
     if (!visible) return;
+    setMounted(true);
     setLoading(true);
+    slideAnim.setValue(500);
+    backdropAnim.setValue(0);
+
+    Animated.parallel([
+      Animated.timing(backdropAnim, { toValue: 1, duration: 260, useNativeDriver: true }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 340,
+        easing: Easing.out(Easing.exp),
+        useNativeDriver: true,
+      }),
+    ]).start();
+
     fetchAllergies(accessToken)
       .then((allergies) => {
         if (allergies.length === 0) {
@@ -65,6 +86,13 @@ function AllergiesSheet({ visible, onClose, accessToken }: AllergiesSheetProps) 
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [visible]);
+
+  const animateClose = (then: () => void) => {
+    Animated.parallel([
+      Animated.timing(backdropAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 500, duration: 240, useNativeDriver: true }),
+    ]).start(() => { setMounted(false); then(); });
+  };
 
   const toggle = (key: string) => {
     setNoneSelected(false);
@@ -84,7 +112,7 @@ function AllergiesSheet({ visible, onClose, accessToken }: AllergiesSheetProps) 
     setSaving(true);
     try {
       await updateAllergies(accessToken, noneSelected ? [] : Array.from(selected));
-      onClose();
+      animateClose(onClose);
     } catch {
       Alert.alert("Error", "Failed to save allergies. Please try again.");
     } finally {
@@ -92,72 +120,90 @@ function AllergiesSheet({ visible, onClose, accessToken }: AllergiesSheetProps) 
     }
   };
 
+  if (!mounted) return null;
+
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.sheetOverlay} onPress={onClose} />
-      <View style={[styles.sheetContainer, { paddingBottom: insets.bottom + 16 }]}>
-        <View style={styles.sheetHandle} />
-        <Text style={styles.sheetTitle}>Allergies</Text>
-        <Text style={styles.sheetSubtitle}>
-          We'll never recommend a plant that could cause a reaction.
-        </Text>
+    <Modal visible transparent animationType="none" onRequestClose={() => animateClose(onClose)}>
+      <View style={styles.sheetRoot}>
+        {/* Backdrop fades in independently */}
+        <Animated.View style={[styles.sheetBackdrop, { opacity: backdropAnim }]}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => animateClose(onClose)} />
+        </Animated.View>
 
-        {loading ? (
-          <ActivityIndicator color="#008080" style={{ marginVertical: 24 }} />
-        ) : (
-          <ScrollView scrollEnabled={false}>
-            {ALLERGENS.map(({ key, label }) => {
-              const isSelected = selected.has(key);
-              return (
-                <Pressable
-                  key={key}
-                  style={[styles.allergenRow, isSelected && styles.allergenRowSelected]}
-                  onPress={() => toggle(key)}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: isSelected }}
-                >
-                  <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
-                    {isSelected && <Text style={styles.checkmark}>✓</Text>}
-                  </View>
-                  <Text style={[styles.allergenLabel, isSelected && styles.allergenLabelSelected]}>
-                    {label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-
-            <Pressable
-              style={[styles.allergenRow, noneSelected && styles.allergenRowSelected]}
-              onPress={toggleNone}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: noneSelected }}
-            >
-              <View style={[styles.checkbox, noneSelected && styles.checkboxSelected]}>
-                {noneSelected && <Text style={styles.checkmark}>✓</Text>}
-              </View>
-              <Text style={[styles.allergenLabel, noneSelected && styles.allergenLabelSelected]}>
-                None of the above
-              </Text>
-            </Pressable>
-          </ScrollView>
-        )}
-
-        <Pressable
-          style={[styles.saveButton, saving && { opacity: 0.6 }]}
-          onPress={handleSave}
-          disabled={saving || loading}
-          accessibilityRole="button"
+        {/* Card slides up independently */}
+        <Animated.View
+          style={[
+            styles.sheetContainer,
+            { paddingBottom: insets.bottom + 16, transform: [{ translateY: slideAnim }] },
+          ]}
         >
-          {saving ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.saveButtonText}>Save changes</Text>
-          )}
-        </Pressable>
+          <View style={styles.sheetHandle} />
+          <Text style={styles.sheetTitle}>Allergies</Text>
+          <Text style={styles.sheetSubtitle}>
+            We'll never recommend a plant that could cause a reaction.
+          </Text>
 
-        <Pressable onPress={onClose} style={styles.cancelButton} accessibilityRole="button">
-          <Text style={styles.cancelText}>Cancel</Text>
-        </Pressable>
+          {loading ? (
+            <ActivityIndicator color="#008080" style={{ marginVertical: 24 }} />
+          ) : (
+            <ScrollView scrollEnabled={false}>
+              {ALLERGENS.map(({ key, label }) => {
+                const isSelected = selected.has(key);
+                return (
+                  <Pressable
+                    key={key}
+                    style={[styles.allergenRow, isSelected && styles.allergenRowSelected]}
+                    onPress={() => toggle(key)}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: isSelected }}
+                  >
+                    <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
+                      {isSelected && <Text style={styles.checkmark}>✓</Text>}
+                    </View>
+                    <Text style={[styles.allergenLabel, isSelected && styles.allergenLabelSelected]}>
+                      {label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+
+              <Pressable
+                style={[styles.allergenRow, noneSelected && styles.allergenRowSelected]}
+                onPress={toggleNone}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: noneSelected }}
+              >
+                <View style={[styles.checkbox, noneSelected && styles.checkboxSelected]}>
+                  {noneSelected && <Text style={styles.checkmark}>✓</Text>}
+                </View>
+                <Text style={[styles.allergenLabel, noneSelected && styles.allergenLabelSelected]}>
+                  None of the above
+                </Text>
+              </Pressable>
+            </ScrollView>
+          )}
+
+          <Pressable
+            style={[styles.saveButton, saving && { opacity: 0.6 }]}
+            onPress={handleSave}
+            disabled={saving || loading}
+            accessibilityRole="button"
+          >
+            {saving ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.saveButtonText}>Save changes</Text>
+            )}
+          </Pressable>
+
+          <Pressable
+            onPress={() => animateClose(onClose)}
+            style={styles.cancelButton}
+            accessibilityRole="button"
+          >
+            <Text style={styles.cancelText}>Cancel</Text>
+          </Pressable>
+        </Animated.View>
       </View>
     </Modal>
   );
@@ -341,14 +387,19 @@ const styles = StyleSheet.create({
   signOutText: { fontSize: 16, color: "#c00", fontWeight: "500" },
 
   // Bottom sheet
-  sheetOverlay: {
+  sheetRoot: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+  },
+  sheetBackdrop: {
+    position: "absolute",
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.5)",
   },
   sheetContainer: {
     backgroundColor: "#fff",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     paddingHorizontal: 20,
     paddingTop: 12,
   },
