@@ -1,6 +1,16 @@
-import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Animated,
+  Easing,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import LottieView from "lottie-react-native";
 import BottomSheet from "../components/BottomSheet";
@@ -8,10 +18,10 @@ import { supabase } from "../../utils/supabase";
 import {
   CalendarStats,
   DayPlants,
-  StatsSummary,
+  StreakStats,
   fetchCalendarStats,
   fetchDayPlants,
-  fetchStatsSummary,
+  fetchStreak,
 } from "../services/api";
 
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
@@ -92,6 +102,105 @@ function Leaf() {
   );
 }
 
+// ── Today pill ────────────────────────────────────────────────────────────────
+
+function TodayPill({ onPress }: { onPress: () => void }) {
+  const anim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(anim, {
+      toValue: 1,
+      duration: 220,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  return (
+    <Animated.View
+      style={{
+        opacity: anim,
+        transform: [{ translateX: anim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
+      }}
+    >
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [styles.todayPill, pressed && { opacity: 0.7 }]}
+        accessibilityRole="button"
+        accessibilityLabel="Jump to today"
+      >
+        <Text style={styles.todayPillText}>Today</Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+// ── Shimmer placeholders ──────────────────────────────────────────────────────
+
+function ShimmerGroup({ style, children }: { style?: any; children: React.ReactNode }) {
+  const [w, setW] = useState(0);
+  const x = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (w === 0) return;
+    const loop = Animated.loop(
+      Animated.timing(x, { toValue: 1, duration: 1200, easing: Easing.linear, useNativeDriver: true })
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [w]);
+
+  const translateX = x.interpolate({ inputRange: [0, 1], outputRange: [-w, w] });
+
+  return (
+    <View style={[style, { overflow: "hidden" }]} onLayout={(e) => setW(e.nativeEvent.layout.width)}>
+      {children}
+      {w > 0 && (
+        <Animated.View
+          style={[StyleSheet.absoluteFill, { transform: [{ translateX }] }]}
+          pointerEvents="none"
+        >
+          <LinearGradient
+            colors={["transparent", "rgba(255,255,255,0.65)", "transparent"]}
+            locations={[0.35, 0.5, 0.65]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={{ flex: 1 }}
+          />
+        </Animated.View>
+      )}
+    </View>
+  );
+}
+
+function StatCardSkeleton() {
+  return (
+    <ShimmerGroup style={styles.statCard}>
+      <View style={styles.skelIcon} />
+      <View style={{ flex: 1 }}>
+        <View style={styles.skelValue} />
+        <View style={styles.skelLabel} />
+      </View>
+    </ShimmerGroup>
+  );
+}
+
+function CalendarGridSkeleton({ rows }: { rows: number }) {
+  return (
+    <ShimmerGroup style={styles.gridSkeleton}>
+      {Array.from({ length: rows }).map((_, r) => (
+        <View key={r} style={styles.skelWeekRow}>
+          {Array.from({ length: 7 }).map((_, c) => (
+            <View key={c} style={styles.cellWrap}>
+              <View style={styles.skelCell} />
+            </View>
+          ))}
+        </View>
+      ))}
+    </ShimmerGroup>
+  );
+}
+
 // ── Day detail sheet ──────────────────────────────────────────────────────────
 
 function DayDetailSheet({ day, onClose }: { day: Date | null; onClose: () => void }) {
@@ -158,17 +267,19 @@ export default function StatsScreen() {
   });
   const [stats, setStats] = useState<CalendarStats | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
-  const [loading, setLoading] = useState(true);
+  const [monthLoading, setMonthLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
-  const [summary, setSummary] = useState<StatsSummary | null>(null);
+  const [streak, setStreak] = useState<StreakStats | null>(null);
+  const [streakLoading, setStreakLoading] = useState(true);
 
   const grid = buildMonthGrid(month);
   const todayKey = localDateKey(new Date());
 
+  // Month-dependent data: calendar heatmap + unique-this-month. Reloads on month change.
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      setLoading(true);
+      setMonthLoading(true);
       try {
         const { data } = await supabase.auth.getSession();
         if (!data.session) return;
@@ -190,12 +301,8 @@ export default function StatsScreen() {
         const monthEndISO = new Date(
           month.getFullYear(), month.getMonth() + 1, 0, 23, 59, 59
         ).toISOString();
-        const tzOffset = -new Date().getTimezoneOffset(); // minutes to add to UTC for local
 
-        const [result, summaryResult] = await Promise.all([
-          fetchCalendarStats(token, startISO, endISO),
-          fetchStatsSummary(token, monthStartISO, monthEndISO, tzOffset),
-        ]);
+        const result = await fetchCalendarStats(token, startISO, endISO, monthStartISO, monthEndISO);
         if (cancelled) return;
 
         const bucket: Record<string, number> = {};
@@ -205,14 +312,32 @@ export default function StatsScreen() {
         }
         setStats(result);
         setCounts(bucket);
-        setSummary(summaryResult);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setMonthLoading(false);
       }
     };
     load();
     return () => { cancelled = true; };
   }, [month]);
+
+  // Streak is month-independent: fetch once on mount only.
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setStreakLoading(true);
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!data.session) return;
+        const tzOffset = -new Date().getTimezoneOffset();
+        const result = await fetchStreak(data.session.access_token, tzOffset);
+        if (!cancelled) setStreak(result);
+      } finally {
+        if (!cancelled) setStreakLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, []);
 
   const target = stats?.target ?? 1;
   const goal = stats?.goal ?? 0;
@@ -224,6 +349,11 @@ export default function StatsScreen() {
   const changeMonth = (delta: number) =>
     setMonth((m) => new Date(m.getFullYear(), m.getMonth() + delta, 1));
 
+  const now = new Date();
+  const isCurrentMonth =
+    month.getFullYear() === now.getFullYear() && month.getMonth() === now.getMonth();
+  const goToToday = () => setMonth(new Date(now.getFullYear(), now.getMonth(), 1));
+
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
       <View style={styles.header}>
@@ -234,15 +364,18 @@ export default function StatsScreen() {
       <View style={styles.calendarCard}>
         {/* Month navigation */}
         <View style={styles.monthNav}>
-          <Pressable onPress={() => changeMonth(-1)} style={styles.navButton} accessibilityLabel="Previous month">
-            <Ionicons name="chevron-back" size={22} color="#008080" />
-          </Pressable>
           <Text style={styles.monthLabel}>
             {MONTHS[month.getMonth()]} {month.getFullYear()}
           </Text>
-          <Pressable onPress={() => changeMonth(1)} style={styles.navButton} accessibilityLabel="Next month">
-            <Ionicons name="chevron-forward" size={22} color="#008080" />
-          </Pressable>
+          <View style={styles.navControls}>
+            {!isCurrentMonth && <TodayPill onPress={goToToday} />}
+            <Pressable onPress={() => changeMonth(-1)} style={styles.navButton} accessibilityLabel="Previous month">
+              <Ionicons name="chevron-back" size={22} color="#008080" />
+            </Pressable>
+            <Pressable onPress={() => changeMonth(1)} style={styles.navButton} accessibilityLabel="Next month">
+              <Ionicons name="chevron-forward" size={22} color="#008080" />
+            </Pressable>
+          </View>
         </View>
 
         {/* Weekday labels */}
@@ -252,8 +385,8 @@ export default function StatsScreen() {
           ))}
         </View>
 
-        {loading ? (
-          <ActivityIndicator color="#008080" style={{ marginVertical: 40 }} />
+        {monthLoading ? (
+          <CalendarGridSkeleton rows={weeks.length} />
         ) : (
           weeks.map((week, wi) => {
             const weekSum = week.reduce((sum, d) => sum + (counts[localDateKey(d)] || 0), 0);
@@ -277,17 +410,17 @@ export default function StatsScreen() {
                       accessibilityRole="button"
                       accessibilityLabel={`${d.toDateString()}, ${count} plants`}
                     >
-                      <View
-                        style={[
-                          styles.cell,
-                          { backgroundColor: color },
-                          isToday && styles.cellToday,
-                        ]}
-                      >
+                      <View style={[styles.cell, { backgroundColor: color }]}>
+                        {isToday && (
+                          <View style={styles.todayCircleWrap} pointerEvents="none">
+                            <View style={styles.todayCircle} />
+                          </View>
+                        )}
                         <Text
                           style={[
                             styles.cellText,
-                            { color: isDarkShade(color) ? "#fff" : "#444" },
+                            { color: isToday ? "#fff" : isDarkShade(color) ? "#fff" : "#444" },
+                            isToday && styles.cellTextToday,
                             !inMonth && styles.cellTextFaded,
                           ]}
                         >
@@ -319,28 +452,36 @@ export default function StatsScreen() {
       </View>
 
       {/* Unique plants this month */}
-      <View style={styles.statCard}>
-        <Leaf />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.statValue}>{summary?.unique_this_month ?? 0}</Text>
-          <Text style={styles.statLabel}>
-            different plants in {MONTHS[month.getMonth()]}
-          </Text>
+      {monthLoading ? (
+        <StatCardSkeleton />
+      ) : (
+        <View style={styles.statCard}>
+          <Leaf />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.statValue}>{stats?.unique_this_month ?? 0}</Text>
+            <Text style={styles.statLabel}>
+              different plants in {MONTHS[month.getMonth()]}
+            </Text>
+          </View>
         </View>
-      </View>
+      )}
 
       {/* Daily streak */}
-      <View style={[styles.statCard, styles.streakCard]}>
-        <Flame />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.statValue}>
-            {summary?.streak ?? 0} {summary?.streak === 1 ? "day" : "days"}
-          </Text>
-          <Text style={styles.statLabel}>
-            streak hitting your daily goal of {summary?.target ?? 0}
-          </Text>
+      {streakLoading ? (
+        <StatCardSkeleton />
+      ) : (
+        <View style={[styles.statCard, styles.streakCard]}>
+          <Flame />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.statValue}>
+              {streak?.streak ?? 0} {streak?.streak === 1 ? "day" : "days"}
+            </Text>
+            <Text style={styles.statLabel}>
+              streak hitting your daily goal of {streak?.target ?? 0}
+            </Text>
+          </View>
         </View>
-      </View>
+      )}
       </ScrollView>
 
       <DayDetailSheet day={selectedDay} onClose={() => setSelectedDay(null)} />
@@ -388,6 +529,14 @@ const styles = StyleSheet.create({
   flame: { width: 48, height: 48 },
   leaf: { width: 48, height: 48 },
 
+  // Shimmer skeletons
+  skelIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#e5e7eb" },
+  skelValue: { width: 56, height: 20, borderRadius: 6, backgroundColor: "#e5e7eb" },
+  skelLabel: { width: "70%", height: 12, borderRadius: 6, backgroundColor: "#e5e7eb", marginTop: 8 },
+  gridSkeleton: {},
+  skelWeekRow: { flexDirection: "row", marginVertical: 3 },
+  skelCell: { aspectRatio: 1, borderRadius: 8, backgroundColor: "#e5e7eb" },
+
   calendarCard: {
     backgroundColor: "#fff",
     marginHorizontal: 16,
@@ -406,7 +555,16 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   navButton: { padding: 6 },
+  navControls: { flexDirection: "row", alignItems: "center", gap: 4 },
   monthLabel: { fontSize: 17, fontWeight: "700", color: "#111" },
+  todayPill: {
+    backgroundColor: "#e6f4f4",
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 999,
+    marginRight: 2,
+  },
+  todayPillText: { fontSize: 13, fontWeight: "700", color: "#008080" },
   weekdayRow: { flexDirection: "row", marginBottom: 6 },
   weekdayLabel: {
     flex: 1,
@@ -452,8 +610,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  cellToday: { borderWidth: 2, borderColor: "#008080" },
+  todayCircleWrap: {
+    position: "absolute",
+    top: 0, left: 0, right: 0, bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  todayCircle: {
+    width: "68%",
+    aspectRatio: 1,
+    borderRadius: 999,
+    backgroundColor: "#ff5a3c",
+  },
   cellText: { fontSize: 12, fontWeight: "600" },
+  cellTextToday: { fontWeight: "800" },
   cellTextFaded: { opacity: 0.35 },
   legend: {
     flexDirection: "row",

@@ -13,19 +13,7 @@ def _parse_iso(ts: str) -> datetime:
     return datetime.fromisoformat(ts.replace("Z", "+00:00"))
 
 
-@router.get("/calendar")
-async def calendar_stats(
-    request: Request,
-    start: str = Query(...),
-    end: str = Query(...),
-):
-    """Returns consumed-plant timestamps in [start, end] (UTC ISO bounds) plus the
-    user's current daily target and weekly goal. The frontend buckets the
-    timestamps into local calendar days for the heatmap.
-    """
-    user_id = request.state.user_id
-    supabase = get_supabase_client()
-
+def _target_for(supabase, user_id: str) -> int:
     profile = (
         supabase
         .from_("profiles")
@@ -34,12 +22,30 @@ async def calendar_stats(
         .execute()
     )
     difficulty = (profile.data[0] if profile.data else {}).get("difficulty_level", "beginner")
-    target = DIFFICULTY_SLOT_COUNT.get(difficulty, 2)
+    return DIFFICULTY_SLOT_COUNT.get(difficulty, 2)
+
+
+@router.get("/calendar")
+async def calendar_stats(
+    request: Request,
+    start: str = Query(...),
+    end: str = Query(...),
+    month_start: str = Query(...),
+    month_end: str = Query(...),
+):
+    """Returns consumed-plant timestamps in [start, end] (the calendar grid range)
+    plus the count of distinct plants consumed within [month_start, month_end] (the
+    viewed month) and the user's daily target / weekly goal. The frontend buckets
+    the timestamps into local calendar days for the heatmap.
+    """
+    user_id = request.state.user_id
+    supabase = get_supabase_client()
+    target = _target_for(supabase, user_id)
 
     rows = (
         supabase
         .from_("food_rotation_history")
-        .select("removed_from_pantry_at")
+        .select("north_american_plant_foods_id, removed_from_pantry_at")
         .eq("profiles_id", user_id)
         .eq("leave_reason", "consumed")
         .gte("removed_from_pantry_at", start)
@@ -47,9 +53,25 @@ async def calendar_stats(
         .execute()
     ).data or []
 
-    events = [r["removed_from_pantry_at"] for r in rows if r["removed_from_pantry_at"]]
+    month_lo = _parse_iso(month_start)
+    month_hi = _parse_iso(month_end)
 
-    return {"target": target, "goal": target * 7, "events": events}
+    events = []
+    unique_ids: set[int] = set()
+    for r in rows:
+        ts = r["removed_from_pantry_at"]
+        if not ts:
+            continue
+        events.append(ts)
+        if month_lo <= _parse_iso(ts) <= month_hi:
+            unique_ids.add(r["north_american_plant_foods_id"])
+
+    return {
+        "target": target,
+        "goal": target * 7,
+        "events": events,
+        "unique_this_month": len(unique_ids),
+    }
 
 
 @router.get("/day")
@@ -95,54 +117,34 @@ async def day_plants(
     return {"plants": plants, "total_plants": len(plants), "total_fiber": total_fiber}
 
 
-@router.get("/summary")
-async def stats_summary(
+@router.get("/streak")
+async def streak_stats(
     request: Request,
-    month_start: str = Query(...),
-    month_end: str = Query(...),
     tz_offset: int = Query(0),  # minutes to add to UTC to get the user's local time
 ):
-    """Returns:
-    - unique_this_month: distinct plants consumed within [month_start, month_end]
-    - streak: consecutive local days (up to today) where consumed >= daily target
-    - target: the user's daily target (difficulty slot count)
+    """Current streak: consecutive local days (up to today) where the user consumed
+    at least their daily target. Month-independent.
     """
     user_id = request.state.user_id
     supabase = get_supabase_client()
-
-    profile = (
-        supabase
-        .from_("profiles")
-        .select("difficulty_level")
-        .eq("id", user_id)
-        .execute()
-    )
-    difficulty = (profile.data[0] if profile.data else {}).get("difficulty_level", "beginner")
-    target = DIFFICULTY_SLOT_COUNT.get(difficulty, 2)
+    target = _target_for(supabase, user_id)
 
     rows = (
         supabase
         .from_("food_rotation_history")
-        .select("north_american_plant_foods_id, removed_from_pantry_at")
+        .select("removed_from_pantry_at")
         .eq("profiles_id", user_id)
         .eq("leave_reason", "consumed")
         .execute()
     ).data or []
 
-    month_lo = _parse_iso(month_start)
-    month_hi = _parse_iso(month_end)
     offset = timedelta(minutes=tz_offset)
-
-    unique_ids: set[int] = set()
     day_counts: Counter = Counter()
     for r in rows:
         ts = r["removed_from_pantry_at"]
         if not ts:
             continue
-        dt = _parse_iso(ts)
-        if month_lo <= dt <= month_hi:
-            unique_ids.add(r["north_american_plant_foods_id"])
-        local_date = (dt.astimezone(timezone.utc).replace(tzinfo=None) + offset).date()
+        local_date = (_parse_iso(ts).astimezone(timezone.utc).replace(tzinfo=None) + offset).date()
         day_counts[local_date] += 1
 
     met_days = {d for d, c in day_counts.items() if c >= target}
@@ -155,8 +157,4 @@ async def stats_summary(
         streak += 1
         cursor -= timedelta(days=1)
 
-    return {
-        "unique_this_month": len(unique_ids),
-        "streak": streak,
-        "target": target,
-    }
+    return {"streak": streak, "target": target}

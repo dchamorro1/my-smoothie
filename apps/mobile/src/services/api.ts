@@ -118,14 +118,19 @@ export interface CalendarStats {
   target: number;
   goal: number;
   events: string[]; // UTC ISO timestamps of consumed plants
+  unique_this_month: number;
 }
 
 export async function fetchCalendarStats(
   accessToken: string,
   startISO: string,
-  endISO: string
+  endISO: string,
+  monthStartISO: string,
+  monthEndISO: string
 ): Promise<CalendarStats> {
-  const params = `start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}`;
+  const params =
+    `start=${encodeURIComponent(startISO)}&end=${encodeURIComponent(endISO)}` +
+    `&month_start=${encodeURIComponent(monthStartISO)}&month_end=${encodeURIComponent(monthEndISO)}`;
   const response = await fetch(`${API_URL}/api/stats/calendar?${params}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
@@ -133,26 +138,19 @@ export async function fetchCalendarStats(
   return response.json();
 }
 
-export interface StatsSummary {
-  unique_this_month: number;
+export interface StreakStats {
   streak: number;
   target: number;
 }
 
-export async function fetchStatsSummary(
+export async function fetchStreak(
   accessToken: string,
-  monthStartISO: string,
-  monthEndISO: string,
   tzOffsetMinutes: number
-): Promise<StatsSummary> {
-  const params =
-    `month_start=${encodeURIComponent(monthStartISO)}` +
-    `&month_end=${encodeURIComponent(monthEndISO)}` +
-    `&tz_offset=${tzOffsetMinutes}`;
-  const response = await fetch(`${API_URL}/api/stats/summary?${params}`, {
+): Promise<StreakStats> {
+  const response = await fetch(`${API_URL}/api/stats/streak?tz_offset=${tzOffsetMinutes}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  if (!response.ok) throw new Error(`Failed to fetch summary: ${response.status}`);
+  if (!response.ok) throw new Error(`Failed to fetch streak: ${response.status}`);
   return response.json();
 }
 
