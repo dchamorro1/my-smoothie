@@ -133,6 +133,29 @@ export async function fetchCalendarStats(
   return response.json();
 }
 
+export interface StatsSummary {
+  unique_this_month: number;
+  streak: number;
+  target: number;
+}
+
+export async function fetchStatsSummary(
+  accessToken: string,
+  monthStartISO: string,
+  monthEndISO: string,
+  tzOffsetMinutes: number
+): Promise<StatsSummary> {
+  const params =
+    `month_start=${encodeURIComponent(monthStartISO)}` +
+    `&month_end=${encodeURIComponent(monthEndISO)}` +
+    `&tz_offset=${tzOffsetMinutes}`;
+  const response = await fetch(`${API_URL}/api/stats/summary?${params}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok) throw new Error(`Failed to fetch summary: ${response.status}`);
+  return response.json();
+}
+
 export interface DayPlants {
   plants: { common_name: string; fiber_quantity: number }[];
   total_plants: number;

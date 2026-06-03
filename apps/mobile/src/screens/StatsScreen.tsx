@@ -2,9 +2,17 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import LottieView from "lottie-react-native";
 import BottomSheet from "../components/BottomSheet";
 import { supabase } from "../../utils/supabase";
-import { CalendarStats, DayPlants, fetchCalendarStats, fetchDayPlants } from "../services/api";
+import {
+  CalendarStats,
+  DayPlants,
+  StatsSummary,
+  fetchCalendarStats,
+  fetchDayPlants,
+  fetchStatsSummary,
+} from "../services/api";
 
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 const MONTHS = [
@@ -56,6 +64,32 @@ function shadeColor(count: number, target: number): string {
 
 function isDarkShade(color: string): boolean {
   return color === LEVELS[2] || color === LEVELS[3];
+}
+
+// ── Animated flame ────────────────────────────────────────────────────────────
+
+function Flame() {
+  return (
+    <LottieView
+      // @ts-ignore
+      source={require("../../assets/flame-streak.json")}
+      autoPlay
+      loop
+      style={styles.flame}
+    />
+  );
+}
+
+function Leaf() {
+  return (
+    <LottieView
+      // @ts-ignore
+      source={require("../../assets/leaf.json")}
+      autoPlay
+      loop
+      style={styles.leaf}
+    />
+  );
 }
 
 // ── Day detail sheet ──────────────────────────────────────────────────────────
@@ -126,6 +160,7 @@ export default function StatsScreen() {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+  const [summary, setSummary] = useState<StatsSummary | null>(null);
 
   const grid = buildMonthGrid(month);
   const todayKey = localDateKey(new Date());
@@ -137,6 +172,7 @@ export default function StatsScreen() {
       try {
         const { data } = await supabase.auth.getSession();
         if (!data.session) return;
+        const token = data.session.access_token;
 
         const gridStart = grid[0];
         const gridEnd = grid[grid.length - 1];
@@ -147,7 +183,19 @@ export default function StatsScreen() {
           gridEnd.getFullYear(), gridEnd.getMonth(), gridEnd.getDate(), 23, 59, 59
         ).toISOString();
 
-        const result = await fetchCalendarStats(data.session.access_token, startISO, endISO);
+        // True month bounds (1st → last day) for the unique-this-month count
+        const monthStartISO = new Date(
+          month.getFullYear(), month.getMonth(), 1, 0, 0, 0
+        ).toISOString();
+        const monthEndISO = new Date(
+          month.getFullYear(), month.getMonth() + 1, 0, 23, 59, 59
+        ).toISOString();
+        const tzOffset = -new Date().getTimezoneOffset(); // minutes to add to UTC for local
+
+        const [result, summaryResult] = await Promise.all([
+          fetchCalendarStats(token, startISO, endISO),
+          fetchStatsSummary(token, monthStartISO, monthEndISO, tzOffset),
+        ]);
         if (cancelled) return;
 
         const bucket: Record<string, number> = {};
@@ -157,6 +205,7 @@ export default function StatsScreen() {
         }
         setStats(result);
         setCounts(bucket);
+        setSummary(summaryResult);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -181,6 +230,7 @@ export default function StatsScreen() {
         <Text style={styles.title}>Stats</Text>
       </View>
 
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
       <View style={styles.calendarCard}>
         {/* Month navigation */}
         <View style={styles.monthNav}>
@@ -247,6 +297,11 @@ export default function StatsScreen() {
                     </Pressable>
                   );
                 })}
+                {goalReached && (
+                  <View style={styles.weekBadge}>
+                    <Ionicons name="star" size={12} color="#fff" />
+                  </View>
+                )}
               </View>
             );
           })
@@ -263,6 +318,31 @@ export default function StatsScreen() {
         </View>
       </View>
 
+      {/* Unique plants this month */}
+      <View style={styles.statCard}>
+        <Leaf />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.statValue}>{summary?.unique_this_month ?? 0}</Text>
+          <Text style={styles.statLabel}>
+            different plants in {MONTHS[month.getMonth()]}
+          </Text>
+        </View>
+      </View>
+
+      {/* Daily streak */}
+      <View style={[styles.statCard, styles.streakCard]}>
+        <Flame />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.statValue}>
+            {summary?.streak ?? 0} {summary?.streak === 1 ? "day" : "days"}
+          </Text>
+          <Text style={styles.statLabel}>
+            streak hitting your daily goal of {summary?.target ?? 0}
+          </Text>
+        </View>
+      </View>
+      </ScrollView>
+
       <DayDetailSheet day={selectedDay} onClose={() => setSelectedDay(null)} />
     </SafeAreaView>
   );
@@ -270,12 +350,44 @@ export default function StatsScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#f2f2f7" },
+  scrollContent: { paddingBottom: 24 },
   header: {
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 12,
   },
   title: { fontSize: 34, fontWeight: "700", color: "#111" },
+
+  // Stat cards
+  statCard: {
+    backgroundColor: "#fff",
+    marginHorizontal: 16,
+    marginTop: 14,
+    borderRadius: 18,
+    padding: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+  streakCard: { backgroundColor: "#fff7ed" },
+  statIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#e6f4f4",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statValue: { fontSize: 24, fontWeight: "800", color: "#111" },
+  statLabel: { fontSize: 13, color: "#777", marginTop: 1 },
+  flame: { width: 48, height: 48 },
+  leaf: { width: 48, height: 48 },
+
   calendarCard: {
     backgroundColor: "#fff",
     marginHorizontal: 16,
@@ -308,11 +420,30 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "transparent",
     borderRadius: 12,
-    marginVertical: 1,
+    marginVertical: 3,
   },
   weekRowReached: {
-    borderColor: "#f5b301",
-    backgroundColor: "#fffdf5",
+    borderColor: "#fde9b8",
+    backgroundColor: "#fff8e6",
+    // soft gold glow
+    shadowColor: "#f5b301",
+    shadowOpacity: 0.45,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
+  },
+  weekBadge: {
+    position: "absolute",
+    top: -7,
+    right: -7,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#f5b301",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
   },
   cellWrap: { flex: 1, padding: 2 },
   cell: {

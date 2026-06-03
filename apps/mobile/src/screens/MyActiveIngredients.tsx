@@ -18,6 +18,7 @@ import Swipeable from "react-native-gesture-handler/Swipeable";
 import * as Haptics from "expo-haptics";
 import LottieView from "lottie-react-native";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import BottomSheet from "../components/BottomSheet";
 import { supabase } from "../../utils/supabase";
 import {
@@ -28,10 +29,13 @@ import {
   buyPlant,
   fetchUserActivePlants,
   fetchWeeklyProgress,
+  getLocalWeekStart,
   removePlant,
   searchPlants,
   skipPlant,
 } from "../services/api";
+
+const CELEBRATED_WEEK_KEY = "celebratedWeek";
 
 const HARD_SWIPE_THRESHOLD = -220;
 
@@ -70,7 +74,7 @@ function ProgressBar({ consumed, goal }: { consumed: number; goal: number }) {
           <Text style={styles.progressCount}>{consumed}</Text>
           {" / "}
           <Text style={styles.progressCount}>{goal}</Text>
-          {"  plants consumed this week"}
+          {"  unique plants consumed this week"}
           {isOverGoal ? " ✨" : ""}
         </Text>
       </View>
@@ -453,8 +457,6 @@ export default function MyActiveIngredients() {
   const [progress, setProgress] = useState<WeeklyProgress | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
   const [showAddSheet, setShowAddSheet] = useState(false);
-  // Tracks whether the celebration has already fired this session
-  const celebrationFiredRef = useRef(false);
 
   useEffect(() => {
     loadPlants();
@@ -491,14 +493,20 @@ export default function MyActiveIngredients() {
   };
 
   const updateProgress = (next: WeeklyProgress) => {
-    setProgress((prev) => {
-      const wasBelow = !prev || prev.consumed < next.goal;
-      if (wasBelow && next.consumed >= next.goal && !celebrationFiredRef.current) {
-        celebrationFiredRef.current = true;
-        setShowCelebration(true);
-      }
-      return next;
-    });
+    setProgress(next);
+    maybeCelebrate(next);
+  };
+
+  // Celebrate once per week, the first time the goal is reached. Persisted in
+  // AsyncStorage (keyed by the local week start) so it survives tab remounts and
+  // app restarts, but fires again the following week.
+  const maybeCelebrate = async (p: WeeklyProgress) => {
+    if (p.goal <= 0 || p.consumed < p.goal) return;
+    const weekStart = getLocalWeekStart();
+    const celebrated = await AsyncStorage.getItem(CELEBRATED_WEEK_KEY);
+    if (celebrated === weekStart) return;
+    await AsyncStorage.setItem(CELEBRATED_WEEK_KEY, weekStart);
+    setShowCelebration(true);
   };
 
   const appendNewPlant = (newPlant: ActivePlant | null) => {
