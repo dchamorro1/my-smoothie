@@ -6,6 +6,7 @@ import {
   FlatList,
   Modal,
   Pressable,
+  RefreshControl,
   StyleSheet,
   Text,
   TextInput,
@@ -302,8 +303,10 @@ function ShimmerCard() {
 }
 
 function LoadingShimmer() {
+  // Rendered inside the FlatList content container (which already has list
+  // padding), so only add the inter-card gap here.
   return (
-    <View style={styles.list}>
+    <View style={{ gap: 12 }}>
       {[0, 1, 2, 3, 4].map((i) => (
         <ShimmerCard key={i} />
       ))}
@@ -469,6 +472,8 @@ export default function MyActiveIngredients() {
   };
 
   const loadPlants = async () => {
+    setLoading(true);
+    setError(null);
     try {
       const { data } = await supabase.auth.getSession();
       if (!data.session) throw new Error("No active session.");
@@ -479,6 +484,11 @@ export default function MyActiveIngredients() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRefresh = () => {
+    loadPlants();
+    loadProgress();
   };
 
   const loadProgress = async () => {
@@ -595,25 +605,18 @@ export default function MyActiveIngredients() {
         )}
       </LinearGradient>
 
-      {loading && <LoadingShimmer />}
-
-      {!loading && error && (
+      {error ? (
         <View style={styles.centered}>
           <Text style={styles.errorText}>{error}</Text>
         </View>
-      )}
-
-      {!loading && !error && plants.length === 0 && (
-        <View style={styles.centered}>
-          <Text style={styles.emptyText}>No plants available for this season.</Text>
-        </View>
-      )}
-
-      {!loading && !error && plants.length > 0 && (
+      ) : (
         <FlatList
-          data={plants}
+          data={loading ? [] : plants}
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={styles.list}
+          refreshControl={
+            <RefreshControl refreshing={false} onRefresh={handleRefresh} tintColor="#008080" />
+          }
           renderItem={({ item, index }) =>
             skippedIds.has(item.id) ? (
               <SkippedPlaceholder key={item.id} />
@@ -627,15 +630,29 @@ export default function MyActiveIngredients() {
               />
             )
           }
+          ListEmptyComponent={
+            loading ? (
+              <LoadingShimmer />
+            ) : (
+              <View style={styles.emptyWrap}>
+                <Text style={styles.emptyTitle}>You've eaten all your plants this week! 🌱</Text>
+                <Text style={styles.emptySubtitle}>
+                  Nice work. Want more? Add your own below.
+                </Text>
+              </View>
+            )
+          }
           ListFooterComponent={
-            <Pressable
-              style={({ pressed }) => [styles.addRow, pressed && styles.addRowPressed]}
-              onPress={() => setShowAddSheet(true)}
-              accessibilityRole="button"
-            >
-              <Ionicons name="add-circle-outline" size={22} color="#008080" />
-              <Text style={styles.addRowText}>Add your own</Text>
-            </Pressable>
+            loading ? null : (
+              <Pressable
+                style={({ pressed }) => [styles.addRow, pressed && styles.addRowPressed]}
+                onPress={() => setShowAddSheet(true)}
+                accessibilityRole="button"
+              >
+                <Ionicons name="add-circle-outline" size={22} color="#008080" />
+                <Text style={styles.addRowText}>Add your own</Text>
+              </Pressable>
+            )
           }
         />
       )}
@@ -750,6 +767,9 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
   errorText: { color: "#c00", fontSize: 15, textAlign: "center" },
   emptyText: { color: "#777", fontSize: 15, textAlign: "center" },
+  emptyWrap: { alignItems: "center", paddingVertical: 32, paddingHorizontal: 8 },
+  emptyTitle: { fontSize: 17, fontWeight: "700", color: "#111", textAlign: "center" },
+  emptySubtitle: { fontSize: 14, color: "#777", textAlign: "center", marginTop: 6 },
   list: { padding: 16, gap: 12 },
   card: {
     borderRadius: 14,

@@ -54,8 +54,9 @@ async def update_profile(request: Request, body: ProfileUpdateRequest):
     if not resp.data:
         raise HTTPException(status_code=404, detail="Profile not found")
 
-    # Top up active plants if the new level expects more than are currently shown
-    new_slot_count = DIFFICULTY_SLOT_COUNT[body.difficulty_level]
+    # Top up active plants if the new level expects more for the week than shown.
+    # The home list holds a full week's worth: daily amount × 7.
+    new_weekly_count = DIFFICULTY_SLOT_COUNT[body.difficulty_level] * 7
     count_resp = (
         supabase
         .from_("user_active_plants")
@@ -64,7 +65,7 @@ async def update_profile(request: Request, body: ProfileUpdateRequest):
         .execute()
     )
     current_count = count_resp.count or 0
-    deficit = new_slot_count - current_count
+    deficit = new_weekly_count - current_count
     if deficit > 0:
         calculate_and_assign_user_active_plants(user_id, count=deficit)
 

@@ -1,3 +1,4 @@
+import re
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 
@@ -9,8 +10,23 @@ from app.utils.supabase import get_supabase_client
 router = APIRouter(prefix="/api/stats", tags=["stats"])
 
 
+_ISO_RE = re.compile(r"(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})")
+
+
 def _parse_iso(ts: str) -> datetime:
-    return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    """Parse an ISO timestamp to an aware UTC datetime.
+
+    Python 3.9's datetime.fromisoformat is too strict for Postgres output:
+    it rejects hour-only offsets ('+00') and fractional seconds that aren't
+    exactly 3 or 6 digits (Postgres trims trailing zeros). All our timestamps
+    are UTC, so we just extract the date/time fields and treat them as UTC,
+    ignoring the (UTC) offset and sub-second precision.
+    """
+    m = _ISO_RE.match(ts.strip())
+    if not m:
+        raise ValueError(f"Unrecognized timestamp: {ts!r}")
+    year, month, day, hour, minute, second = (int(g) for g in m.groups())
+    return datetime(year, month, day, hour, minute, second, tzinfo=timezone.utc)
 
 
 def _target_for(supabase, user_id: str) -> int:

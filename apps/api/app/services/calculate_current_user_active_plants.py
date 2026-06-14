@@ -46,7 +46,8 @@ def calculate_and_assign_user_active_plants(user_id: str, count: Optional[int] =
         .execute()
     )
     difficulty = (profile_resp.data or {}).get("difficulty_level", "beginner")
-    slot_count = count if count is not None else DIFFICULTY_SLOT_COUNT.get(difficulty, 2)
+    # When no explicit count is given, seed a full week's worth (daily amount × 7).
+    slot_count = count if count is not None else DIFFICULTY_SLOT_COUNT.get(difficulty, 2) * 7
 
     season_col = _current_season_column()
 
@@ -121,7 +122,10 @@ def calculate_and_assign_user_active_plants(user_id: str, count: Optional[int] =
     # Never-seen plants sort first (empty string < any ISO timestamp)
     candidates.sort(key=lambda p: last_seen.get(p["id"]) or "")
 
-    pool = candidates[:CANDIDATE_POOL_SIZE]
+    # Pool of least-recently-seen plants to choose from. Must be larger than the
+    # number we need so the fiber scoring still has room to vary the selection.
+    pool_size = max(CANDIDATE_POOL_SIZE, slot_count + 5)
+    pool = candidates[:pool_size]
 
     # Score by fiber + noise so high-fiber plants lead but low-fiber still get picked
     scored = [(p, p["fiber_quantity"] + random.uniform(0, FIBER_NOISE_MAX)) for p in pool]

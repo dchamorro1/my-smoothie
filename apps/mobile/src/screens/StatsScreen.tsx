@@ -4,6 +4,7 @@ import {
   Animated,
   Easing,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -275,69 +276,67 @@ export default function StatsScreen() {
   const grid = buildMonthGrid(month);
   const todayKey = localDateKey(new Date());
 
-  // Month-dependent data: calendar heatmap + unique-this-month. Reloads on month change.
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      setMonthLoading(true);
-      try {
-        const { data } = await supabase.auth.getSession();
-        if (!data.session) return;
-        const token = data.session.access_token;
+  // Month-dependent data: calendar heatmap + unique-this-month.
+  const loadMonth = async () => {
+    setMonthLoading(true);
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) return;
+      const token = data.session.access_token;
 
-        const gridStart = grid[0];
-        const gridEnd = grid[grid.length - 1];
-        const startISO = new Date(
-          gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate(), 0, 0, 0
-        ).toISOString();
-        const endISO = new Date(
-          gridEnd.getFullYear(), gridEnd.getMonth(), gridEnd.getDate(), 23, 59, 59
-        ).toISOString();
+      const gridStart = grid[0];
+      const gridEnd = grid[grid.length - 1];
+      const startISO = new Date(
+        gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate(), 0, 0, 0
+      ).toISOString();
+      const endISO = new Date(
+        gridEnd.getFullYear(), gridEnd.getMonth(), gridEnd.getDate(), 23, 59, 59
+      ).toISOString();
 
-        // True month bounds (1st → last day) for the unique-this-month count
-        const monthStartISO = new Date(
-          month.getFullYear(), month.getMonth(), 1, 0, 0, 0
-        ).toISOString();
-        const monthEndISO = new Date(
-          month.getFullYear(), month.getMonth() + 1, 0, 23, 59, 59
-        ).toISOString();
+      // True month bounds (1st → last day) for the unique-this-month count
+      const monthStartISO = new Date(
+        month.getFullYear(), month.getMonth(), 1, 0, 0, 0
+      ).toISOString();
+      const monthEndISO = new Date(
+        month.getFullYear(), month.getMonth() + 1, 0, 23, 59, 59
+      ).toISOString();
 
-        const result = await fetchCalendarStats(token, startISO, endISO, monthStartISO, monthEndISO);
-        if (cancelled) return;
-
-        const bucket: Record<string, number> = {};
-        for (const iso of result.events) {
-          const key = localDateKey(new Date(iso));
-          bucket[key] = (bucket[key] || 0) + 1;
-        }
-        setStats(result);
-        setCounts(bucket);
-      } finally {
-        if (!cancelled) setMonthLoading(false);
+      const result = await fetchCalendarStats(token, startISO, endISO, monthStartISO, monthEndISO);
+      const bucket: Record<string, number> = {};
+      for (const iso of result.events) {
+        const key = localDateKey(new Date(iso));
+        bucket[key] = (bucket[key] || 0) + 1;
       }
-    };
-    load();
-    return () => { cancelled = true; };
-  }, [month]);
+      setStats(result);
+      setCounts(bucket);
+    } finally {
+      setMonthLoading(false);
+    }
+  };
 
-  // Streak is month-independent: fetch once on mount only.
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      setStreakLoading(true);
-      try {
-        const { data } = await supabase.auth.getSession();
-        if (!data.session) return;
-        const tzOffset = -new Date().getTimezoneOffset();
-        const result = await fetchStreak(data.session.access_token, tzOffset);
-        if (!cancelled) setStreak(result);
-      } finally {
-        if (!cancelled) setStreakLoading(false);
-      }
-    };
-    load();
-    return () => { cancelled = true; };
-  }, []);
+  // Streak is month-independent.
+  const loadStreak = async () => {
+    setStreakLoading(true);
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) return;
+      const tzOffset = -new Date().getTimezoneOffset();
+      const result = await fetchStreak(data.session.access_token, tzOffset);
+      setStreak(result);
+    } finally {
+      setStreakLoading(false);
+    }
+  };
+
+  // Reload the calendar/unique count whenever the viewed month changes.
+  useEffect(() => { loadMonth(); }, [month]);
+  // Streak loads once on mount.
+  useEffect(() => { loadStreak(); }, []);
+
+  const handleRefresh = () => {
+    loadMonth();
+    loadStreak();
+  };
 
   const target = stats?.target ?? 1;
   const goal = stats?.goal ?? 0;
@@ -360,7 +359,13 @@ export default function StatsScreen() {
         <Text style={styles.title}>Stats</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={false} onRefresh={handleRefresh} tintColor="#008080" />
+        }
+      >
       <View style={styles.calendarCard}>
         {/* Month navigation */}
         <View style={styles.monthNav}>
