@@ -106,7 +106,7 @@ async def day_plants(
     rows = (
         supabase
         .from_("food_rotation_history")
-        .select("north_american_plant_foods_id, north_american_plant_foods(common_name, fiber_quantity)")
+        .select("north_american_plant_foods_id, north_american_plant_foods(common_name, fiber_quantity, category)")
         .eq("profiles_id", user_id)
         .eq("leave_reason", "consumed")
         .gte("removed_from_pantry_at", start)
@@ -125,6 +125,7 @@ async def day_plants(
         plants.append({
             "common_name": food["common_name"],
             "fiber_quantity": food["fiber_quantity"],
+            "category": food["category"],
         })
 
     plants.sort(key=lambda p: p["common_name"].lower())

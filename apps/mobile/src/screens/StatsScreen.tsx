@@ -15,6 +15,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import LottieView from "lottie-react-native";
 import BottomSheet from "../components/BottomSheet";
+import { categoryEmoji } from "../utils/category";
 import { supabase } from "../../utils/supabase";
 import {
   CalendarStats,
@@ -249,7 +250,7 @@ function DayDetailSheet({ day, onClose }: { day: Date | null; onClose: () => voi
         <ScrollView style={{ maxHeight: 360 }} scrollEnabled>
           {data.plants.map((p) => (
             <View key={p.common_name} style={styles.dayRow}>
-              <Text style={styles.dayPlantName}>{p.common_name}</Text>
+              <Text style={styles.dayPlantName}>{categoryEmoji(p.category)}  {p.common_name}</Text>
               <View style={styles.dayFiberBadge}>
                 <Text style={styles.dayFiberText}>{p.fiber_quantity}g fiber / oz</Text>
               </View>

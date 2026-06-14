@@ -51,13 +51,18 @@ def _selectable_candidates(supabase, user_id: str) -> list[dict]:
     plants = (
         supabase
         .from_("north_american_plant_foods")
-        .select("id, common_name, fiber_quantity, alllergen")
+        .select("id, common_name, fiber_quantity, alllergen, category")
         .eq("is_active", True)
         .execute()
     ).data or []
 
     return [
-        {"id": p["id"], "common_name": p["common_name"], "fiber_quantity": p["fiber_quantity"]}
+        {
+            "id": p["id"],
+            "common_name": p["common_name"],
+            "fiber_quantity": p["fiber_quantity"],
+            "category": p["category"],
+        }
         for p in plants
         if p["id"] not in excluded and p["alllergen"] not in user_allergens
     ]

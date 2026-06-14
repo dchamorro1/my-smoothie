@@ -291,11 +291,11 @@ export default function SettingsScreen({ onSignOut, onLinkAccount }: Props) {
 
     if (isGuest) {
       Alert.alert(
-        "Sign out as guest?",
-        "You're using a guest account. Signing out will permanently delete your data — your active plants, allergies, and settings will be lost.\n\nCreate an account first to save your progress.",
+        "Start over?",
+        "You're using a guest account. Starting over will permanently delete your data — your active plants, allergies, and settings will be lost.\n\nLink an account first to save your progress.",
         [
           { text: "Cancel", style: "cancel" },
-          { text: "Sign Out & Delete Data", style: "destructive", onPress: confirmGuestSignOut },
+          { text: "Delete & start over", style: "destructive", onPress: confirmGuestSignOut },
         ]
       );
     } else {
@@ -385,7 +385,9 @@ export default function SettingsScreen({ onSignOut, onLinkAccount }: Props) {
           onPress={handleSignOut}
           accessibilityRole="button"
         >
-          <Text style={styles.signOutText}>Sign Out</Text>
+          <Text style={styles.signOutText}>
+            {profile?.is_guest_user ? "Start over" : "Sign Out"}
+          </Text>
         </Pressable>
       </View>
 

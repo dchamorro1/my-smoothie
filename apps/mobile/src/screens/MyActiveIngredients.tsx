@@ -21,6 +21,7 @@ import LottieView from "lottie-react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import BottomSheet from "../components/BottomSheet";
+import { categoryEmoji } from "../utils/category";
 import { supabase } from "../../utils/supabase";
 import {
   ActivePlant,
@@ -235,7 +236,7 @@ function AddPlantSheet({ visible, onClose, onAdded }: AddPlantSheetProps) {
               disabled={addingId !== null}
               accessibilityRole="button"
             >
-              <Text style={styles.resultName}>{plant.common_name}</Text>
+              <Text style={styles.resultName}>{categoryEmoji(plant.category)}  {plant.common_name}</Text>
               {addingId === plant.id ? (
                 <ActivityIndicator size="small" color="#008080" />
               ) : (
@@ -439,7 +440,7 @@ function PlantRow({ item, index, onBuy, onRemove, onSkip }: PlantRowProps) {
               color={bought ? "#008080" : "#f59e0b"}
             />
           </Pressable>
-          <Text style={styles.plantName}>{item.common_name}</Text>
+          <Text style={styles.plantName}>{categoryEmoji(item.category)}  {item.common_name}</Text>
           <View style={styles.fiberBadge}>
             <Text style={styles.fiberText}>{item.fiber_quantity}g fiber / oz</Text>
           </View>
@@ -598,7 +599,7 @@ export default function MyActiveIngredients() {
         style={[styles.header, { paddingTop: insets.top + 16 }]}
       >
         <Text style={styles.greeting}>{getGreeting()} 🌱</Text>
-        <Text style={styles.title}>My Daily Ingredients</Text>
+        <Text style={styles.title}>My Weekly Ingredients</Text>
 
         {progress && (
           <ProgressBar consumed={progress.consumed} goal={progress.goal} />

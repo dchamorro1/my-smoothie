@@ -45,7 +45,7 @@ def _fetch_active_plants(supabase, user_id: str) -> list:
     resp = (
         supabase
         .from_("user_active_plants")
-        .select("id, status, position_index, north_american_plant_foods(common_name, fiber_quantity)")
+        .select("id, status, position_index, north_american_plant_foods(common_name, fiber_quantity, category)")
         .eq("profiles_id", user_id)
         .order("status")           # "bought" < "pending" alphabetically → bought first
         .order("position_index")
@@ -96,6 +96,7 @@ async def get_user_active_plants(request: Request):
                 "position_index": p["position_index"],
                 "common_name": p["north_american_plant_foods"]["common_name"],
                 "fiber_quantity": p["north_american_plant_foods"]["fiber_quantity"],
+                "category": p["north_american_plant_foods"]["category"],
             }
             for p in plants
         ]
@@ -179,7 +180,7 @@ def _calculate_and_return_new_plant(supabase, user_id: str):
     resp = (
         supabase
         .from_("user_active_plants")
-        .select("id, status, position_index, north_american_plant_foods(common_name, fiber_quantity)")
+        .select("id, status, position_index, north_american_plant_foods(common_name, fiber_quantity, category)")
         .eq("profiles_id", user_id)
         .eq("status", "pending")
         .order("created_at", desc=True)
@@ -195,6 +196,7 @@ def _calculate_and_return_new_plant(supabase, user_id: str):
         "position_index": p["position_index"],
         "common_name": p["north_american_plant_foods"]["common_name"],
         "fiber_quantity": p["north_american_plant_foods"]["fiber_quantity"],
+        "category": p["north_american_plant_foods"]["category"],
     }
 
 
@@ -270,7 +272,7 @@ async def add_custom_plant(request: Request, body: CustomPlantRequest):
     detail = (
         supabase
         .from_("user_active_plants")
-        .select("id, status, position_index, north_american_plant_foods(common_name, fiber_quantity)")
+        .select("id, status, position_index, north_american_plant_foods(common_name, fiber_quantity, category)")
         .eq("id", new_id)
         .execute()
     ).data[0]
@@ -282,5 +284,6 @@ async def add_custom_plant(request: Request, body: CustomPlantRequest):
             "position_index": detail["position_index"],
             "common_name": detail["north_american_plant_foods"]["common_name"],
             "fiber_quantity": detail["north_american_plant_foods"]["fiber_quantity"],
+            "category": detail["north_american_plant_foods"]["category"],
         }
     }

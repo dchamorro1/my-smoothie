@@ -155,7 +155,7 @@ export async function fetchStreak(
 }
 
 export interface DayPlants {
-  plants: { common_name: string; fiber_quantity: number }[];
+  plants: { common_name: string; fiber_quantity: number; category: string }[];
   total_plants: number;
   total_fiber: number;
 }
@@ -179,12 +179,14 @@ export interface ActivePlant {
   position_index: number;
   common_name: string;
   fiber_quantity: number;
+  category: string;
 }
 
 export interface PlantSearchResult {
   id: number;
   common_name: string;
   fiber_quantity: number;
+  category: string;
 }
 
 export async function searchPlants(accessToken: string, query: string): Promise<PlantSearchResult[]> {
