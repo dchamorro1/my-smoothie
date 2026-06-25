@@ -17,12 +17,10 @@ type Props = {
 
 export default function OnboardingAllergiesScreen({ onBack, onContinue }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [noneSelected, setNoneSelected] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const toggleAllergen = (key: string) => {
-    setNoneSelected(false);
     setSelected((prev) => {
       const next = new Set(prev);
       next.has(key) ? next.delete(key) : next.add(key);
@@ -30,16 +28,11 @@ export default function OnboardingAllergiesScreen({ onBack, onContinue }: Props)
     });
   };
 
-  const toggleNone = () => {
-    setNoneSelected((prev) => !prev);
-    setSelected(new Set());
-  };
-
   const handleContinue = async () => {
     setLoading(true);
     setError(null);
     try {
-      await onContinue(noneSelected ? [] : Array.from(selected));
+      await onContinue(Array.from(selected));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
       setLoading(false);
@@ -78,20 +71,6 @@ export default function OnboardingAllergiesScreen({ onBack, onContinue }: Props)
               </Pressable>
             );
           })}
-
-          <Pressable
-            style={[styles.option, noneSelected && styles.optionSelected]}
-            onPress={toggleNone}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: noneSelected }}
-          >
-            <View style={[styles.checkbox, noneSelected && styles.checkboxSelected]}>
-              {noneSelected && <Text style={styles.checkmark}>✓</Text>}
-            </View>
-            <Text style={[styles.optionLabel, noneSelected && styles.optionLabelSelected]}>
-              None of the above
-            </Text>
-          </Pressable>
         </View>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -105,7 +84,9 @@ export default function OnboardingAllergiesScreen({ onBack, onContinue }: Props)
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.buttonText}>Get Started</Text>
+            <Text style={styles.buttonText}>
+              {selected.size === 0 ? "No allergies" : "Get Started"}
+            </Text>
           )}
         </Pressable>
       </View>
