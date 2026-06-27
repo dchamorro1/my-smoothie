@@ -69,3 +69,11 @@ Both the mobile app and backend should run simultaneously for local development.
 3. FastAPI verifies JWT, queries Supabase
 4. FastAPI returns recommendations to app
 5. App displays recommendations to user
+
+<img width="1320" height="2868" alt="image" src="https://github.com/user-attachments/assets/bfcec9e7-417f-499c-a4fa-d14457539d94" />
+<img width="1320" height="2868" alt="image" src="https://github.com/user-attachments/assets/96c019f9-11c6-4669-9435-06fe72aadb5d" />
+<img width="1320" height="2868" alt="image" src="https://github.com/user-attachments/assets/ceba4dfa-5618-45e2-b7d2-6b09e1995a90" />
+<img width="1320" height="2868" alt="image" src="https://github.com/user-attachments/assets/cb0010f7-3bd0-4012-871b-998a53de16bd" />
+
+
+
